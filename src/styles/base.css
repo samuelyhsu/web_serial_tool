@@ -1,0 +1,241 @@
+/* 全局重置与通用控件样式。布局交给各组件的 CSS Module。 */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--blue-text);
+  text-decoration: underline;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* 可见的焦点环 —— 原型只有 :focus 时的 1px outline，键盘用户几乎看不出焦点在哪 */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--panel2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--faint);
+}
+
+/* ---------- 通用控件 ---------- */
+
+.field {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.field--sunk {
+  background: var(--sunk);
+}
+
+.field--sm {
+  padding: 3px 6px;
+  font-size: 11.5px;
+}
+
+.field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.field--invalid {
+  border-color: var(--red);
+}
+
+.btn {
+  background: var(--panel2);
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  transition:
+    color 0.12s,
+    border-color 0.12s,
+    background 0.12s;
+}
+
+.btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--accent {
+  color: var(--blue-text);
+}
+
+.btn--accent:hover:not(:disabled) {
+  border-color: var(--blue);
+}
+
+.btn--danger:hover:not(:disabled) {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.btn--primary {
+  background: var(--blue);
+  color: var(--inv);
+  border-color: var(--blue);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--blue);
+  color: var(--inv);
+  filter: brightness(1.08);
+}
+
+.btn--on {
+  background: var(--amber);
+  color: var(--inv);
+  border-color: var(--amber);
+}
+
+.btn--on:hover:not(:disabled) {
+  background: var(--amber);
+  color: var(--inv);
+  filter: brightness(1.06);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.check input {
+  accent-color: var(--blue);
+  margin: 0;
+}
+
+.check--amber input {
+  accent-color: var(--amber);
+}
+
+.label {
+  color: var(--dim);
+  font-size: 11px;
+}
+
+/* 数据格式切换：单个按钮，显示当前格式，点击切到另一种。
+   接收区、发送区、每条预设都用它，保证三处观感一致。 */
+.formatToggle {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel2);
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    border-color 0.12s;
+}
+
+.formatToggle:hover:not(:disabled) {
+  border-color: var(--amber);
+  color: var(--text);
+}
+
+/* HEX 用琥珀色标出来：它是「非默认」的那一档，值得一眼看见 */
+.formatToggle[data-format='hex'] {
+  color: var(--amber);
+  border-color: var(--amber-soft);
+}
+
+.formatToggle--sm {
+  font-size: 9.5px;
+  padding: 2px 6px;
+  background: var(--panel);
+}
+
+.panelTitle {
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

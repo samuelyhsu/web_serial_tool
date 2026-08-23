@@ -1,0 +1,215 @@
+.pane {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  min-height: 0;
+  background: var(--panel2);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.pageBtn {
+  padding: 2px 8px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pageLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dim);
+  min-width: 34px;
+  text-align: center;
+}
+
+.headActions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+/* 一行六列：勾选 · 格式 · 数据 · 发送 · 改名 · 周期 · 循环
+   （改名按钮紧贴发送按钮，不占独立表头） */
+.columns,
+.row {
+  display: grid;
+  grid-template-columns: 20px 40px minmax(0, 1fr) 84px 20px 58px 28px;
+  gap: 6px;
+  align-items: center;
+}
+
+.columns {
+  padding: 5px 10px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line2);
+  font-size: 10px;
+  color: var(--faint);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.columnLoop {
+  text-align: center;
+}
+
+.list {
+  overflow: auto;
+  min-height: 0;
+}
+
+.row {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--line2);
+}
+
+.row[data-looping='true'] {
+  background: var(--amber-row);
+}
+
+.seq {
+  accent-color: var(--amber);
+  margin: 0;
+  width: 13px;
+  height: 13px;
+  justify-self: center;
+}
+
+.data {
+  min-width: 0;
+  background: var(--sunk);
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-sm);
+  color: var(--green-text);
+  padding: 3px 7px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.data[aria-invalid='true'] {
+  border-color: var(--red);
+}
+
+/* 发送按钮上显示的就是这条预设的名字 */
+.sendBtn {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--blue-soft);
+  color: var(--blue-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sendBtn:hover:not(:disabled) {
+  background: var(--blue);
+  color: var(--inv);
+}
+
+.sendBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nameInput {
+  min-width: 0;
+  background: var(--sunk);
+  border: 1px solid var(--blue);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 3px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.renameBtn {
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.renameBtn:hover {
+  color: var(--text);
+}
+
+.intervalInput {
+  width: 100%;
+  padding: 3px 4px;
+  text-align: right;
+}
+
+.loopBtn {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+}
+
+.footer {
+  padding: 10px 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+}
+
+.footerRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footerRight {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gapInput {
+  width: 66px;
+}
+
+.footerActions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.seqBtn {
+  padding: 8px;
+  font-size: 12.5px;
+}
+
+.stopAllBtn {
+  padding: 8px 16px;
+  font-size: 12.5px;
+}

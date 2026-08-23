@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  # 供 deploy.yml 调用：main 分支的校验作为部署的前置关卡跑，
+  # 而不是和部署并行 —— 并行的话测试挂了照样会发布上线
+  workflow_call:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Test
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build

@@ -1,0 +1,108 @@
+/* 单条发送吃掉右栏的多余空间：标题行按内容，编辑区占满剩余 */
+.pane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line2);
+  flex-wrap: wrap;
+}
+
+/* 右栏只有 470px 宽，编辑区竖向堆叠：文本框占满剩余高度，操作行在下 */
+.editor {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px 12px 12px;
+}
+
+.textarea {
+  /* 不设固定高度，由 grid 拉伸；min-height 保证短窗口下也还能打字 */
+  min-height: 68px;
+  resize: none;
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  padding: 9px 11px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.textarea[aria-invalid='true'] {
+  border-color: var(--red);
+}
+
+.side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.sendBtn {
+  padding: 7px 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--blue);
+  color: var(--inv);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sendBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.loopBox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel2);
+}
+
+.loopInput {
+  width: 62px;
+}
+
+.loopBtn {
+  margin-left: auto;
+  padding: 3px 12px;
+}
+
+.message {
+  padding: 0 12px 6px;
+  font-size: 11.5px;
+  color: var(--red-text);
+}
+
+.checksumSelect {
+  max-width: 210px;
+}
+
+/* 实时计算结果：紧跟在下拉框后面，用琥珀色标出它是会被追加的字节 */
+.checksumValue {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  white-space: nowrap;
+}

@@ -1,0 +1,149 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 14px;
+  border-right: 1px solid var(--line);
+}
+
+.mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--blue);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--inv);
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.baudInput {
+  width: 92px;
+  text-align: right;
+}
+
+.portButton {
+  max-width: 320px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px;
+  color: var(--text);
+}
+
+.portName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portState {
+  color: var(--amber);
+  flex: none;
+}
+
+.aliasInput {
+  width: 130px;
+  font-family: var(--font-sans);
+}
+
+.right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel2);
+}
+
+.led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+  flex: none;
+}
+
+.led[data-state='open'] {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.led[data-state='opening'],
+.led[data-state='reconnecting'] {
+  background: var(--amber);
+  box-shadow: 0 0 6px var(--amber);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.statusText {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.connect {
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 7px 18px;
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+  min-width: 100px;
+  background: var(--green);
+  color: var(--inv);
+}
+
+.connect[data-open='true'] {
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.connect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.switches {
+  display: flex;
+  gap: 4px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}

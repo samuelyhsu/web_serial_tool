@@ -1,0 +1,29 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 6px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dim);
+  flex-wrap: wrap;
+}
+
+.rx {
+  color: var(--green-text);
+}
+
+.tx {
+  color: var(--blue-text);
+}
+
+.faint {
+  color: var(--faint);
+}
+
+.right {
+  margin-left: auto;
+  color: var(--faint);
+}

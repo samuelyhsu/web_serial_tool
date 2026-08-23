@@ -1,0 +1,168 @@
+# Web Serial Tool · 串口助手
+
+基于 [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) 的浏览器串口调试工具。打开网页即可收发数据，无需安装驱动或客户端。
+
+## 运行环境
+
+| 项         | 要求                                                                              |
+| ---------- | --------------------------------------------------------------------------------- |
+| 浏览器     | Chrome / Edge 89+ 或其他 Chromium 内核浏览器（Firefox、Safari 不支持 Web Serial） |
+| 安全上下文 | HTTPS 或 `localhost`——这是 Web Serial 的硬性要求                                  |
+| 授权       | 需点「选择端口」，由用户手势触发浏览器的设备选择器                                |
+
+浏览器不支持时页面会显示明确的说明横幅，不会假装功能可用。
+
+### 关于端口选择与端口名
+
+Web Serial 出于隐私考虑**不允许页面枚举系统里的所有串口**——`getPorts()` [按规范](https://wicg.github.io/serial/#dom-serial-getports)只返回本站点已获授权的端口，授权只能通过浏览器自己的选择器完成。因此本工具采用**单端口**模型：点「选择端口」打开浏览器选择器，选中即成为当前端口；选完会立刻提示给它起个备注名。选择结果会被记住，下次打开页面自动恢复。
+
+`getInfo()` 只提供 USB VID/PID，**拿不到 COM 口名或设备友好名称**。规范里 `SerialPortInfo` 的 IDL 就三个成员：
+
+```webidl
+dictionary SerialPortInfo {
+   unsigned short usbVendorId;
+   unsigned short usbProductId;
+   BluetoothServiceUUID bluetoothServiceClassId;
+};
+```
+
+社区对此有公开诉求（[WICG/serial#175](https://github.com/WICG/serial/issues/175)），**至今未解决**；背景是 WebKit 以指纹追踪为由反对该规范，Chrome 因此把可暴露的信息压到最小。
+
+本工具在这个前提下做两件事：
+
+1. **把 VID/PID 翻译成芯片 / 厂商名**（如 `#1 CH340 (1A86:7523)`）。对照表在 [`src/core/transport/usbNames.ts`](src/core/transport/usbNames.ts)，只收身份明确的条目，查不到就退回原始 ID 不做猜测。
+2. **让用户给端口起备注名**（显示为 `电机控制器 · #1 CH340 (1A86:7523)`），持久化到 localStorage，刷新后仍在，并跨标签页同步。
+
+> **备注的已知局限**：备注按「VID:PID + 出现序号」存储（如 `usb:1A86:7523#0`）。虚拟串口（com0com 之类）不是 USB 设备，`getInfo()` 返回空对象，前缀退化为 `serial`，只能靠序号区分——因此**这类端口若 `getPorts()` 返回顺序变化，备注可能对调**。有各自独立 VID:PID 的设备不受影响。根因是浏览器不暴露序列号；要可靠区分同型号/虚拟设备，只能走本地辅助程序或桌面端打包（见 Roadmap）。
+
+## 关于「原样分块」
+
+接收侧**不做任何分帧处理**：`reader.read()` 每返回一次，就在日志里落一行。
+
+需要清楚的是，这个「块」的边界是**驱动与时序的产物，不是协议的边界**——同一条设备回复可能被拆成两行，也可能和下一条挤在一行，取决于读取那一刻缓冲里恰好积了多少字节。因此：
+
+- 状态栏的「帧」计数统计的是读取次数，没有协议含义；
+- 文本显示仍然正确：UTF-8 流式解码器跨块保持状态，被切开的汉字不会变乱码，只是会显示在下一行开头。
+
+好处是零延迟（不必等 `
+` 或等静默超时）、行为完全可预测，也最适合排查「数据到底是怎么到达的」这类问题。
+
+## 功能
+
+- **端口**：单端口模型，浏览器选择器授权、选完即提示起备注名、芯片/厂商名识别、在位状态标注、选择结果持久化
+- **串口参数**：波特率 32 档常用值（110 ~ 3000000，含 MIDI 31250、DMX/3D 打印 250000 等）且支持直接输入任意自定义值
+- **收发**：TXT / HEX 格式切换（接收区、发送区、每条预设统一为同一个单按钮控件，默认 TXT），时间戳，TX/RX 分色，关键字过滤与全量高亮
+- **发送**：单条发送（Ctrl+Enter）、周期循环；TXT 与 HEX 各有自己的帧尾控件，同一位置互斥显示，**默认都不追加**
+  - TXT → 结束符（无 / `
+
+`/`
+`/`
+`）
+
+- HEX → 校验和（17 种算法），选中后即时显示将要追加的字节，发送时自动附加
+- **预设**：分页管理，每页固定 10 条共 5 页；每条一行（勾选 · 格式 · 数据 · 发送 · 周期 · 循环），发送按钮上显示自定义名称；单条循环 / 顺序循环（跨页生效）/ JSON 导入导出
+- **校验和**：CRC-8 四种、CRC-16 八种（MODBUS / IBM-3740 / XMODEM / KERMIT / ARC / USB / MAXIM-DOW / DNP）、CRC-32 两种，外加 SUM8 / SUM16 / XOR8，按各协议约定的字节序追加
+- **断线重连**：指数退避 + 抖动，按稳定端口标识重新解析设备
+- **其他**：中英双语、深浅主题、日志导出
+
+## 开发
+
+```bash
+npm install
+npm run dev          # 开发服务器（localhost 下 Web Serial 可用）
+
+npm run typecheck    # tsc --noEmit
+npm run lint         # ESLint
+npm run test         # Vitest
+npm run test:coverage
+npm run build        # 产物输出到 dist/
+npm run preview      # 预览构建产物
+```
+
+## 架构
+
+```text
+src/
+  core/        纯 TypeScript，零框架依赖、零 DOM 访问，可在 Node 下单测
+    transport/   Web Serial 之上的字节流通道 + 串行化写队列 + 端口身份登记
+    codec/       UTF-8 编解码、HEX 解析、日志显示转义
+    checksum/    CRC16 / SUM8 / XOR8
+    scheduler/   周期任务调度、断线重连退避
+    session/     把上面几层编排成一次「串口会话」
+    buffer/      日志用的环形缓冲
+  store/       Zustand 状态层，订阅 core 的事件
+  ui/          React 组件（每个目录 = 组件 + CSS Module）
+               左栏接收区，右栏上单条发送、下多条发送
+  i18n/        文案目录（zh / en）
+  lib/         localStorage 安全包装、下载工具
+```
+
+分层规则由 ESLint 强制：`src/core/**` 不得 import React / zustand / ui / store，也不得直接访问 `document` 或 `localStorage`。唯一接触浏览器串口 API 的地方是 `core/transport/webSerialTransport.ts`。
+
+`core/` 的接口（`Transport`）在测试里由 `tests/fakeTransport.ts` 实现，因此「打开 → 收帧 → 掉线 → 退避重连 → 恢复」这条链路可以在 CI 中跑成确定性测试，不需要真实硬件。
+
+## 测试
+
+自动化测试覆盖 core 层与组件层，共 270 个用例（core 层语句覆盖率 98%）：
+
+- **校验和**由通用 CRC 引擎（Rocksoft 参数化模型）驱动，参数与自校验的 check 值全部取自 [CRC RevEng 目录](https://reveng.sourceforge.io/crc-catalogue/all.htm)。测试逐条用目录的 check 值（`"123456789"` 的结果）验证 —— 参数抄错了 check 值必然对不上，因此这一条同时证明了引擎实现和参数表都正确
+- **编解码**覆盖 UTF-8 跨块流式解码（被切开的汉字不乱码）、HEX 宽松解析与结构化报错、HEX→文本的无损往返校验
+- **调度器**覆盖不重入、周期漂移修正、`stopAll` 不影响重连
+- **会话**用 `FakeTransport` 驱动完整的掉线重连链路，并覆盖「关闭与在途的打开／重连尝试相竞争」—— 这条路径会让端口被孤儿会话独占
+- **传输层**用基于 WHATWG Streams 的 `FakeSerialPort` 覆盖读循环退出条件、关闭时的锁释放顺序、流出错后的恢复、打开途中被关闭的时序
+- **预设**覆盖导出 → 导入往返（内置项的译名不丢）与伪造 `labelKey` 的拒绝
+- **组件**覆盖过滤高亮、TXT/HEX 切换、有损模式切换被拒绝、语言切换、格式控件三处形态与标签中英一致
+
+**自动化测不到的部分**：Web Serial 需要用户手势授权和真实硬件，CI 里没有。以下清单需在真机上人工验收：
+
+1. Chrome/Edge 打开站点 → 选择端口 → 授权 → 打开 → 收发正常
+2. 收发中途拔掉 USB → 观察指数退避重连日志 → 插回 → 自动恢复
+3. 插入第二个设备后重新枚举 → 原选中端口不发生偏移
+   3b. 连续授权两个同型号适配器 → 下拉框以 #1 / #2 区分；拔掉其中一个 → 标注「已拔出」
+4. 设备输出 UTF-8 中文 → 文本视图正确显示
+5. 10 ms 周期发送 + 9600 波特率 → 出现背压告警而非界面卡死
+6. 115200 持续高速接收 → 内存平稳、界面不卡
+7. 往上翻阅历史日志 → 不被自动拽回底部
+8. 开两个标签页各选一个不同端口 → 收发互不干扰；再让第二个页面去开第一个页面已占用的端口 → 明确报错且不进入重连循环
+
+## 多标签页并行使用
+
+支持在同一台电脑上开多个页面、各自连接不同的端口独立工作：
+
+- **授权是按源共享的**——任一标签页授权过的端口，其他标签页也能直接使用，不必重复授权；
+- **每个标签页各自持有一条会话**，日志、统计、预设、周期任务都是页面内的内存状态，互不干扰；
+- **同一个端口不能被两个页面同时打开**——串口在操作系统层面是独占的，第二个页面的 `open()` 会失败并在日志里给出原因。这种失败**不会**触发自动重连（重连只在链路意外中断时启动），因此不会出现两个页面互相抢端口的重试风暴；
+- **端口备注跨标签页同步**：备注存在 localStorage 里，监听 `storage` 事件，一个页面改了其他页面即时跟进，不会互相覆盖。
+
+已知的次要行为：语言和主题的切换只影响当前标签页，其他标签页刷新后才跟随——它们是单值偏好，后写覆盖先写属于正常语义，不会丢数据。
+
+> 上述并行行为在 CI 中只覆盖到了状态层（跨标签页同步有单元测试）；**「两个页面各连一个真实端口」需要在真机上验收**，见下方人工验收清单第 8 条。
+
+## 部署
+
+推送到 `main` 后由 GitHub Actions 构建并发布到 GitHub Pages。项目页部署在 `/<repo>/` 子路径下，构建时通过 `BASE_PATH` 环境变量注入。
+
+## 关于 `design/`
+
+`design/` 里是本项目的 Claude Design 原型存档（`.dc.html` + 运行时 `support.js`），仅作设计参考，不参与构建，也被 ESLint / Prettier 忽略。
+
+原型验证了交互设计，但它在浏览器里从 CDN 拉 React UMD + Babel standalone 现场编译，没有构建、类型、测试，断网打不开。当前版本是在保留其视觉与交互的前提下重写的工程化实现，同时修复了原型中 21 项已定位缺陷（端口身份、编解码、流生命周期、渲染性能、背压、重连策略等）。
+
+## Roadmap
+
+尚未实现，按需求优先级排列：
+
+- 接收分帧模式（按 `\n` 成帧、空闲超时成帧）—— 目前只有「原样分块」，见上文《关于「原样分块」》
+- 预设与串口配置的本地持久化
+- 多字符编码（GBK / Big5 / Shift_JIS 等）—— 文本收发目前固定 UTF-8
+- 真实端口名（COM3）与同型号设备区分 —— 需要本地辅助程序（Node `serialport` / Python `pyserial`）或打包成 Tauri 桌面应用；浏览器 API 做不到
+- 日志虚拟滚动（当前渲染上限 600 行，环形缓冲容量 5000 条）
+- DTR / RTS 信号控制与 Break
+- 日志多格式导出（CSV、二进制）
+- 数据波形绘图
+
+## 参考
+
+- [Web Serial API 规范（WICG）](https://wicg.github.io/serial/)
+- [MDN · Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API)
+- [Chrome for Developers · Read from and write to a serial port](https://developer.chrome.com/docs/capabilities/serial)

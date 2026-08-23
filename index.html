@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="基于 Web Serial API 的浏览器串口调试助手：收发、HEX/文本、校验和、周期发送与预设管理。"
+    />
+    <title>串口助手 · Serial Assistant</title>
+    <!--
+      字体按「渐进增强」加载，不阻塞渲染。
+      串口工具常跑在内网 / 隔离机器上：普通的 <link rel="stylesheet"> 是渲染阻塞的，
+      拉不通 CDN 时要等到请求超时（可能好几秒）页面才出现。改成先 preload、onload 再
+      切成 stylesheet，取不到就一直用 tokens.css 里的系统字体回退栈，界面立刻可用。
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

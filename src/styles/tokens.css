@@ -1,0 +1,78 @@
+/**
+ * 设计令牌。
+ *
+ * 调色板原样沿用原型（oklch，深浅两套），保证重构后视觉不走样；
+ * 区别在于原型把这些值配合内联 style 写在 900 行 HTML 里，无法复用也无法统一调整。
+ */
+
+:root {
+  /* 深色（默认） */
+  --bg: oklch(0.17 0.008 255);
+  --panel: oklch(0.21 0.008 255);
+  --panel2: oklch(0.24 0.008 255);
+  --sunk: oklch(0.145 0.008 255);
+  --line: oklch(0.31 0.01 255);
+  --line2: oklch(0.255 0.008 255);
+  --text: oklch(0.93 0.004 255);
+  --dim: oklch(0.66 0.008 255);
+  --faint: oklch(0.5 0.008 255);
+  --blue: oklch(0.7 0.13 250);
+  --blue-soft: oklch(0.32 0.05 250);
+  --blue-text: oklch(0.86 0.06 250);
+  --green: oklch(0.74 0.15 155);
+  --green-text: oklch(0.88 0.06 155);
+  --amber: oklch(0.78 0.14 80);
+  --amber-row: oklch(0.23 0.03 80);
+  --amber-soft: oklch(0.26 0.04 80);
+  --red: oklch(0.68 0.18 25);
+  --red-bg: oklch(0.3 0.06 25);
+  --red-text: oklch(0.85 0.1 25);
+  --inv: oklch(0.16 0.02 255);
+  --hover: oklch(0.28 0.008 255);
+  --row-hover: oklch(0.225 0.008 255);
+
+  --radius-sm: 4px;
+  --radius: 5px;
+  --radius-md: 6px;
+
+  --font-sans:
+    'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', 'Noto Sans SC', 'Microsoft YaHei',
+    sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+[data-theme='light'] {
+  --bg: oklch(0.97 0.004 255);
+  --panel: oklch(0.995 0.002 255);
+  --panel2: oklch(0.955 0.004 255);
+  --sunk: oklch(0.985 0.003 255);
+  --line: oklch(0.87 0.006 255);
+  --line2: oklch(0.92 0.005 255);
+  --text: oklch(0.26 0.01 255);
+  --dim: oklch(0.48 0.01 255);
+  --faint: oklch(0.62 0.008 255);
+  --blue: oklch(0.55 0.16 250);
+  --blue-soft: oklch(0.93 0.04 250);
+  --blue-text: oklch(0.45 0.14 250);
+  --green: oklch(0.58 0.15 155);
+  --green-text: oklch(0.45 0.12 155);
+  --amber: oklch(0.72 0.15 70);
+  --amber-row: oklch(0.96 0.045 80);
+  --amber-soft: oklch(0.95 0.05 80);
+  --red: oklch(0.55 0.19 25);
+  --red-bg: oklch(0.94 0.05 25);
+  --red-text: oklch(0.48 0.18 25);
+  --inv: oklch(0.99 0.002 255);
+  --hover: oklch(0.92 0.005 255);
+  --row-hover: oklch(0.965 0.004 255);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}

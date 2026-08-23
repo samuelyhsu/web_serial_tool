@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: oklch(0.17 0.008 255); --panel: oklch(0.21 0.008 255); --panel2: oklch(0.24 0.008 255);
+    --sunk: oklch(0.145 0.008 255); --line: oklch(0.31 0.01 255); --line2: oklch(0.255 0.008 255);
+    --text: oklch(0.93 0.004 255); --dim: oklch(0.66 0.008 255); --faint: oklch(0.50 0.008 255);
+    --blue: oklch(0.70 0.13 250); --blueSoft: oklch(0.32 0.05 250); --blueText: oklch(0.86 0.06 250);
+    --green: oklch(0.74 0.15 155); --greenText: oklch(0.88 0.06 155);
+    --amber: oklch(0.78 0.14 80); --amberRow: oklch(0.23 0.03 80); --amberSoft: oklch(0.26 0.04 80);
+    --red: oklch(0.68 0.18 25); --redBg: oklch(0.30 0.06 25); --redText: oklch(0.85 0.10 25);
+    --inv: oklch(0.16 0.02 255); --hover: oklch(0.28 0.008 255); --rowHover: oklch(0.225 0.008 255);
+  }
+  [data-theme="light"] {
+    --bg: oklch(0.97 0.004 255); --panel: oklch(0.995 0.002 255); --panel2: oklch(0.955 0.004 255);
+    --sunk: oklch(0.985 0.003 255); --line: oklch(0.87 0.006 255); --line2: oklch(0.92 0.005 255);
+    --text: oklch(0.26 0.01 255); --dim: oklch(0.48 0.01 255); --faint: oklch(0.62 0.008 255);
+    --blue: oklch(0.55 0.16 250); --blueSoft: oklch(0.93 0.04 250); --blueText: oklch(0.45 0.14 250);
+    --green: oklch(0.58 0.15 155); --greenText: oklch(0.45 0.12 155);
+    --amber: oklch(0.72 0.15 70); --amberRow: oklch(0.96 0.045 80); --amberSoft: oklch(0.95 0.05 80);
+    --red: oklch(0.55 0.19 25); --redBg: oklch(0.94 0.05 25); --redText: oklch(0.48 0.18 25);
+    --inv: oklch(0.99 0.002 255); --hover: oklch(0.92 0.005 255); --rowHover: oklch(0.965 0.004 255);
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg); }
+  body { font-family: "IBM Plex Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { color: var(--blueText); }
+  * { box-sizing: border-box; }
+  input, select, textarea, button { font-family: inherit; }
+  input:focus, select:focus, textarea:focus { outline: 1px solid var(--blue); outline-offset: -1px; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--panel2); }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+  @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.25 } }
+</style>
+</helmet>
+
+<div data-theme="{{ theme }}" style="height: 100vh; min-height: 720px; display: grid; grid-template-rows: auto auto 1fr auto; background: var(--bg); color: var(--text); font-size: 13px; overflow: hidden;">
+
+  <header style="display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 10px; padding-right: 14px; border-right: 1px solid var(--line);">
+      <div style="width: 22px; height: 22px; border-radius: 6px; background: var(--blue); display: grid; place-items: center; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 12px; color: var(--inv);">S</div>
+      <div style="font-weight: 600; font-size: 14px; letter-spacing: 0.01em;">{{ t.app }}</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="color: var(--dim); font-size: 11px;">{{ t.port }}</span>
+      <select value="{{ port }}" onChange="{{ onPort }}" disabled="{{ connected }}" style="background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; min-width: 190px;">
+        <sc-for list="{{ portList }}" as="p" hint-placeholder-count="2">
+          <option value="{{ p.v }}">{{ p.label }}</option>
+        </sc-for>
+      </select>
+      <button onClick="{{ onPickPort }}" style="background: var(--panel2); color: var(--blueText); border: 1px solid var(--line); border-radius: 5px; padding: 5px 10px; cursor: pointer; font-size: 11.5px; font-weight: 600;" style-hover="border-color: var(--blue);">{{ pickLabel }}</button>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="color: var(--dim); font-size: 11px;">{{ t.baud }}</span>
+      <select value="{{ baud }}" onChange="{{ onBaud }}" style="background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">
+        <sc-for list="{{ baudList }}" as="b" hint-placeholder-count="4">
+          <option value="{{ b }}">{{ b }}</option>
+        </sc-for>
+      </select>
+      <span style="color: var(--dim); font-size: 11px; margin-left: 4px;">{{ t.dataBits }}</span>
+      <select value="{{ dataBits }}" onChange="{{ onDataBits }}" style="background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">
+        <option value="8">8</option>
+        <option value="7">7</option>
+      </select>
+      <span style="color: var(--dim); font-size: 11px; margin-left: 4px;">{{ t.parity }}</span>
+      <select value="{{ parity }}" onChange="{{ onParity }}" style="background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">
+        <option value="none">None</option>
+        <option value="even">Even</option>
+        <option value="odd">Odd</option>
+      </select>
+      <span style="color: var(--dim); font-size: 11px; margin-left: 4px;">{{ t.stopBits }}</span>
+      <select value="{{ stopBits }}" onChange="{{ onStopBits }}" style="background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">
+        <option value="1">1</option>
+        <option value="2">2</option>
+      </select>
+      <span style="color: var(--dim); font-size: 11px; margin-left: 4px;">{{ t.flow }}</span>
+      <select value="{{ flow }}" onChange="{{ onFlow }}" style="background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">
+        <option value="none">{{ t.none }}</option>
+        <option value="hardware">RTS/CTS</option>
+      </select>
+    </div>
+
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
+      <label style="display: flex; align-items: center; gap: 5px; color: var(--dim); font-size: 11.5px; cursor: pointer;">
+        <input type="checkbox" checked="{{ autoReconnect }}" onChange="{{ onAutoReconnect }}" style="accent-color: var(--blue); margin: 0;" />{{ t.autoReconnect }}
+      </label>
+      <div style="display: flex; align-items: center; gap: 7px; padding: 4px 10px 4px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel2);">
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: {{ ledColor }}; box-shadow: 0 0 6px {{ ledColor }}; animation: {{ ledAnim }};"></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--dim);">{{ statusText }}</span>
+      </div>
+      <button onClick="{{ onToggleConnect }}" style="border: none; border-radius: 6px; padding: 7px 18px; font-weight: 600; font-size: 12.5px; cursor: pointer; min-width: 100px; background: {{ connectBg }}; color: {{ connectFg }};">{{ connectLabel }}</button>
+      <div style="display: flex; gap: 4px; padding-left: 10px; border-left: 1px solid var(--line);">
+        <button onClick="{{ onLang }}" style="background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 5px 9px; cursor: pointer; font-size: 11px; font-weight: 600;" style-hover="color: var(--text);">{{ langLabel }}</button>
+        <button onClick="{{ onTheme }}" style="background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 5px 9px; cursor: pointer; font-size: 12px;" style-hover="color: var(--text);">{{ themeIcon }}</button>
+      </div>
+    </div>
+  </header>
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 5px 16px; background: {{ modeBg }}; border-bottom: 1px solid var(--line); font-size: 11.5px; flex-wrap: wrap;">
+    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; color: {{ modeFg }};">
+      <input type="checkbox" checked="{{ demo }}" onChange="{{ onDemo }}" disabled="{{ demoLocked }}" style="accent-color: var(--amber); margin: 0;" />{{ t.demoMode }}
+    </label>
+    <span style="color: var(--dim);">{{ modeNote }}</span>
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+      <span style="color: var(--faint);">{{ t.framing }}</span>
+      <select value="{{ framing }}" onChange="{{ onFraming }}" style="background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 3px 7px; font-size: 11.5px;">
+        <option value="line">{{ t.byLine }}</option>
+        <option value="idle">{{ t.byIdle }}</option>
+        <option value="raw">{{ t.byRaw }}</option>
+      </select>
+      <input type="number" value="{{ idleMs }}" onChange="{{ onIdleMs }}" min="1" max="2000" step="5" title="{{ t.idleTip }}" style="width: 58px; background: var(--sunk); border: 1px solid var(--line); border-radius: 4px; color: var(--text); padding: 3px 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px;" />
+      <span style="color: var(--faint);">ms</span>
+    </div>
+  </div>
+
+  <main style="display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-height: 0;">
+
+    <section style="display: grid; grid-template-rows: minmax(0, 1fr) auto; min-width: 0; border-right: 1px solid var(--line);">
+
+      <div style="display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0;">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap;">
+          <span style="font-weight: 600; font-size: 12px; letter-spacing: 0.02em;">{{ t.recv }}</span>
+          <div style="display: flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden;">
+            <button onClick="{{ onRxAscii }}" style="border: none; padding: 4px 11px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 11px; background: {{ rxAsciiBg }}; color: {{ rxAsciiFg }};">ASCII</button>
+            <button onClick="{{ onRxHex }}" style="border: none; padding: 4px 11px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 11px; background: {{ rxHexBg }}; color: {{ rxHexFg }};">HEX</button>
+          </div>
+          <label style="display: flex; align-items: center; gap: 5px; color: var(--dim); font-size: 11.5px; cursor: pointer;">
+            <input type="checkbox" checked="{{ showTs }}" onChange="{{ onShowTs }}" style="accent-color: var(--blue); margin: 0;" />{{ t.timestamp }}
+          </label>
+          <label style="display: flex; align-items: center; gap: 5px; color: var(--dim); font-size: 11.5px; cursor: pointer;">
+            <input type="checkbox" checked="{{ autoScroll }}" onChange="{{ onAutoScroll }}" style="accent-color: var(--blue); margin: 0;" />{{ t.autoScroll }}
+          </label>
+          <label style="display: flex; align-items: center; gap: 5px; color: var(--dim); font-size: 11.5px; cursor: pointer;">
+            <input type="checkbox" checked="{{ showTx }}" onChange="{{ onShowTx }}" style="accent-color: var(--blue); margin: 0;" />{{ t.showTx }}
+          </label>
+          <div style="display: flex; align-items: center; gap: 6px; margin-left: auto;">
+            <input value="{{ filter }}" onChange="{{ onFilter }}" placeholder="{{ t.filterPh }}" style="background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; color: var(--text); padding: 4px 9px; font-size: 11.5px; width: 148px;" />
+            <label style="display: flex; align-items: center; gap: 5px; color: var(--dim); font-size: 11.5px; cursor: pointer;">
+              <input type="checkbox" checked="{{ onlyMatch }}" onChange="{{ onOnlyMatch }}" style="accent-color: var(--amber); margin: 0;" />{{ t.onlyMatch }}
+            </label>
+            <button onClick="{{ onSaveLog }}" style="background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 4px 10px; cursor: pointer; font-size: 11.5px;" style-hover="color: var(--text); background: var(--hover);">{{ t.saveLog }}</button>
+            <button onClick="{{ onClear }}" style="background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 4px 10px; cursor: pointer; font-size: 11.5px;" style-hover="color: var(--red); border-color: var(--red);">{{ t.clear }}</button>
+          </div>
+        </div>
+
+        <div ref="{{ logRef }}" style="overflow: auto; padding: 8px 0; background: var(--sunk); font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.65; min-height: 0;">
+          <sc-for list="{{ lines }}" as="l" hint-placeholder-count="10">
+            <div style="display: flex; gap: 10px; padding: 1px 14px; white-space: pre-wrap; word-break: break-all;" style-hover="background: var(--rowHover);">
+              <span style="color: var(--faint); flex: none; font-size: 11.5px; user-select: none;">{{ l.ts }}</span>
+              <span style="flex: none; width: 20px; text-align: center; user-select: none; font-weight: 600; color: {{ l.arrowColor }};">{{ l.arrow }}</span>
+              <span style="min-width: 0; color: {{ l.color }};">{{ l.pre }}<mark style="background: var(--amber); color: var(--inv); border-radius: 2px; padding: 0 1px;">{{ l.hit }}</mark>{{ l.post }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 40px 16px; text-align: center; color: var(--faint); font-size: 12px;">{{ t.noData }}</div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="background: var(--panel); border-top: 1px solid var(--line);">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--line2);">
+          <span style="font-weight: 600; font-size: 12px; letter-spacing: 0.02em;">{{ t.single }}</span>
+          <div style="display: flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden;">
+            <button onClick="{{ onTxAscii }}" style="border: none; padding: 4px 11px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 11px; background: {{ txAsciiBg }}; color: {{ txAsciiFg }};">ASCII</button>
+            <button onClick="{{ onTxHex }}" style="border: none; padding: 4px 11px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 11px; background: {{ txHexBg }}; color: {{ txHexFg }};">HEX</button>
+          </div>
+          <span style="color: var(--faint); font-size: 11px;">{{ t.eolLabel }}</span>
+          <select value="{{ eol }}" onChange="{{ onEol }}" style="background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 4px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px;">
+            <option value="none">{{ t.none }}</option>
+            <option value="crlf">\r\n</option>
+            <option value="lf">\n</option>
+            <option value="cr">\r</option>
+          </select>
+          <div style="margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--faint);">{{ singleHint }}</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 12px 12px 8px;">
+          <textarea value="{{ single }}" onChange="{{ onSingle }}" onKeyDown="{{ onSingleKey }}" spellcheck="false" placeholder="{{ t.singlePh }}" style="height: 78px; resize: none; background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 9px 11px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.6;"></textarea>
+          <div style="display: flex; flex-direction: column; gap: 8px; width: 226px;">
+            <button onClick="{{ onSendSingle }}" style="flex: 1; border: none; border-radius: 6px; background: var(--blue); color: var(--inv); font-weight: 600; font-size: 13px; cursor: pointer;">{{ t.sendBtn }}</button>
+            <div style="display: flex; align-items: center; gap: 7px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2);">
+              <span style="color: var(--dim); font-size: 11px; flex: none;">{{ t.period }}</span>
+              <input type="number" value="{{ singleInterval }}" onChange="{{ onSingleInterval }}" min="10" step="10" style="width: 62px; background: var(--sunk); border: 1px solid var(--line); border-radius: 4px; color: var(--text); padding: 3px 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;" />
+              <span style="color: var(--faint); font-size: 11px; flex: none;">ms</span>
+              <button onClick="{{ onSingleLoop }}" style="margin-left: auto; border: 1px solid; border-radius: 4px; padding: 3px 12px; cursor: pointer; font-size: 11.5px; font-weight: 600; background: {{ singleLoopBg }}; color: {{ singleLoopFg }}; border-color: {{ singleLoopBorder }};">{{ singleLoopLabel }}</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; padding: 0 12px 12px; flex-wrap: wrap;">
+          <span style="color: var(--faint); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;">{{ t.checksum }}</span>
+          <sc-for list="{{ checks }}" as="c" hint-placeholder-count="4">
+            <button onClick="{{ c.onAppend }}" title="{{ c.tip }}" style="display: flex; align-items: center; gap: 7px; background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; padding: 3px 9px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--dim);" style-hover="border-color: var(--amber); color: var(--text);">
+              <span style="color: var(--faint);">{{ c.name }}</span>
+              <span style="color: var(--amber); font-weight: 600;">{{ c.value }}</span>
+            </button>
+          </sc-for>
+          <span style="color: var(--faint); font-size: 11px; margin-left: 2px;">{{ t.appendHint }}</span>
+        </div>
+      </div>
+    </section>
+
+    <aside style="display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; background: var(--panel2);">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--panel); border-bottom: 1px solid var(--line);">
+        <span style="font-weight: 600; font-size: 12px; letter-spacing: 0.02em;">{{ t.multi }}</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--faint);">{{ presetCount }}</span>
+        <div style="margin-left: auto; display: flex; gap: 6px;">
+          <button onClick="{{ onAddPreset }}" style="background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 3px 9px; cursor: pointer; font-size: 11.5px;" style-hover="color: var(--text);">{{ t.add }}</button>
+          <button onClick="{{ onImport }}" style="background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 3px 9px; cursor: pointer; font-size: 11.5px;" style-hover="color: var(--text);">{{ t.importBtn }}</button>
+          <button onClick="{{ onExport }}" style="background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 3px 9px; cursor: pointer; font-size: 11.5px;" style-hover="color: var(--text);">{{ t.exportBtn }}</button>
+          <input type="file" accept=".json" ref="{{ fileRef }}" onChange="{{ onFile }}" style="display: none;" />
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 26px 1fr 74px 34px; gap: 8px; padding: 5px 12px; background: var(--panel2); border-bottom: 1px solid var(--line2); font-size: 10px; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase;">
+        <span>{{ t.colNo }}</span><span>{{ t.colName }}</span><span>{{ t.colPeriod }}</span><span style="text-align: center;">{{ t.colLoop }}</span>
+      </div>
+
+      <div style="overflow: auto; min-height: 0;">
+        <sc-for list="{{ presets }}" as="p" hint-placeholder-count="10">
+          <div style="display: grid; grid-template-columns: 26px 1fr 74px 34px; gap: 8px; align-items: start; padding: 7px 12px; border-bottom: 1px solid var(--line2); background: {{ p.rowBg }};">
+            <label style="display: flex; align-items: center; gap: 3px; padding-top: 5px; cursor: pointer;">
+              <input type="checkbox" checked="{{ p.seq }}" onChange="{{ p.onSeq }}" style="accent-color: var(--amber); margin: 0; width: 12px; height: 12px;" />
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--faint);">{{ p.no }}</span>
+            </label>
+            <div style="display: grid; gap: 4px; min-width: 0;">
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <input value="{{ p.name }}" onChange="{{ p.onName }}" placeholder="{{ t.namePh }}" style="flex: 1; min-width: 0; background: transparent; border: 1px solid transparent; border-radius: 4px; color: var(--text); padding: 3px 6px; font-size: 12.5px; font-weight: 600;" style-hover="border-color: var(--line); background: var(--sunk);" style-focus="border-color: var(--blue); background: var(--sunk);" />
+                <button onClick="{{ p.onHex }}" style="flex: none; border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; background: var(--panel); color: {{ p.hexFg }};">{{ p.mode }}</button>
+                <button onClick="{{ p.onDelete }}" style="flex: none; border: 1px solid transparent; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 11px; background: transparent; color: var(--faint);" style-hover="color: var(--red); border-color: var(--red);">✕</button>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <input value="{{ p.data }}" onChange="{{ p.onData }}" spellcheck="false" placeholder="{{ t.dataPh }}" style="flex: 1; min-width: 0; background: var(--sunk); border: 1px solid var(--line2); border-radius: 4px; color: var(--greenText); padding: 3px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;" />
+                <button onClick="{{ p.onSend }}" style="flex: none; border: none; border-radius: 4px; padding: 3px 14px; cursor: pointer; font-size: 11.5px; font-weight: 600; background: var(--blueSoft); color: var(--blueText);" style-hover="background: var(--blue); color: var(--inv);">{{ t.sendBtn }}</button>
+              </div>
+            </div>
+            <input type="number" value="{{ p.interval }}" onChange="{{ p.onInterval }}" min="10" step="10" style="background: var(--sunk); border: 1px solid var(--line2); border-radius: 4px; color: var(--text); padding: 4px 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; width: 100%; margin-top: 3px;" />
+            <button onClick="{{ p.onLoop }}" style="margin-top: 3px; width: 34px; height: 26px; border: 1px solid; border-radius: 4px; cursor: pointer; font-size: 11px; display: grid; place-items: center; background: {{ p.loopBg }}; color: {{ p.loopFg }}; border-color: {{ p.loopBorder }};">{{ p.loopIcon }}</button>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="padding: 10px 12px; background: var(--panel); border-top: 1px solid var(--line); display: grid; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 11.5px; color: var(--dim);">{{ t.seqLoop }}</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--faint);">{{ seqHint }}</span>
+          <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
+            <span style="color: var(--faint); font-size: 11px;">{{ t.interval }}</span>
+            <input type="number" value="{{ seqInterval }}" onChange="{{ onSeqInterval }}" min="10" step="10" style="width: 66px; background: var(--sunk); border: 1px solid var(--line); border-radius: 4px; color: var(--text); padding: 3px 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;" />
+            <span style="color: var(--faint); font-size: 11px;">ms</span>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 8px;">
+          <button onClick="{{ onSeqLoop }}" style="border: 1px solid; border-radius: 6px; padding: 8px; cursor: pointer; font-size: 12.5px; font-weight: 600; background: {{ seqBg }}; color: {{ seqFg }}; border-color: {{ seqBorder }};">{{ seqLabel }}</button>
+          <button onClick="{{ onStopAll }}" style="border: 1px solid var(--line); border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 12.5px; background: var(--panel2); color: var(--dim);" style-hover="border-color: var(--red); color: var(--red);">{{ t.stopAll }}</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer style="display: flex; align-items: center; gap: 18px; padding: 6px 16px; background: var(--panel); border-top: 1px solid var(--line); font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--dim); flex-wrap: wrap;">
+    <span>{{ cfgSummary }}</span>
+    <span style="color: var(--greenText);">RX {{ rxBytes }} B · {{ rxFrames }} {{ t.frames }}</span>
+    <span style="color: var(--blueText);">TX {{ txBytes }} B · {{ txFrames }} {{ t.frames }}</span>
+    <span>{{ t.uptime }} {{ uptime }}</span>
+    <span style="color: var(--faint);">{{ rateNote }}</span>
+    <span style="margin-left: auto; color: var(--faint);">{{ timerNote }}</span>
+  </footer>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;demoMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;行为&quot;},&quot;simulateDevice&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;行为&quot;},&quot;reconnectAttempts&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:5,&quot;min&quot;:1,&quot;max&quot;:20,&quot;step&quot;:1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;行为&quot;},&quot;startTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;外观&quot;},&quot;startLang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;zh&quot;,&quot;en&quot;],&quot;default&quot;:&quot;zh&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;外观&quot;}}">
+const BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600, 1500000];
+const DEMO_PORTS = [
+  { v: "demo:0", label: "DEMO · 虚拟设备 SA-2100" },
+  { v: "demo:1", label: "DEMO · 虚拟 Modbus 从站" }
+];
+const DEFAULT_PRESETS = [
+  { nameZh: "查询版本", nameEn: "Query version", data: "AT+VER?", hex: false, interval: 1000, seq: true },
+  { nameZh: "读取状态", nameEn: "Read status", data: "AT+STATUS?", hex: false, interval: 500, seq: true },
+  { nameZh: "读温湿度", nameEn: "Read T/RH", data: "01 03 00 00 00 02 C4 0B", hex: true, interval: 1000, seq: true },
+  { nameZh: "读取电压", nameEn: "Read voltage", data: "01 04 00 10 00 01 70 0D", hex: true, interval: 800, seq: true },
+  { nameZh: "心跳包", nameEn: "Heartbeat", data: "AA 55 01 00 FF", hex: true, interval: 2000, seq: false },
+  { nameZh: "继电器1 开", nameEn: "Relay 1 ON", data: "01 05 00 00 FF 00 8C 3A", hex: true, interval: 1000, seq: false },
+  { nameZh: "继电器1 关", nameEn: "Relay 1 OFF", data: "01 05 00 00 00 00 CD CA", hex: true, interval: 1000, seq: false },
+  { nameZh: "使能输出", nameEn: "Output enable", data: "AT+OUT=1", hex: false, interval: 1000, seq: false },
+  { nameZh: "保存参数", nameEn: "Save config", data: "AT+SAVE", hex: false, interval: 1000, seq: false },
+  { nameZh: "软复位", nameEn: "Soft reset", data: "AT+RST", hex: false, interval: 1000, seq: false }
+];
+const EOL = { none: "", crlf: "\r\n", lf: "\n", cr: "\r" };
+const T = {
+  zh: {
+    app: "串口助手", port: "端口", baud: "波特率", dataBits: "数据位", parity: "校验", stopBits: "停止位",
+    flow: "流控", none: "无", autoReconnect: "自动重连",
+    demoMode: "演示模式", pickPort: "选择端口…", rescan: "刷新",
+    framing: "分帧", byLine: "按行 (\\n)", byIdle: "空闲超时", byRaw: "原样分块", idleTip: "空闲超时分帧时长",
+    recv: "接收区", timestamp: "时间戳", autoScroll: "自动滚屏", showTx: "显示发送",
+    filterPh: "过滤 / 高亮关键字…", onlyMatch: "仅匹配", saveLog: "保存日志", clear: "清空",
+    noData: "无数据 — 打开串口后开始接收",
+    single: "单条发送", eolLabel: "结束符", sendBtn: "发送", singlePh: "输入要发送的内容，Ctrl+Enter 发送",
+    period: "周期", loop: "循环", stop: "停止", bytes: "字节",
+    checksum: "校验和", appendHint: "点击可追加到发送内容",
+    multi: "多条发送", add: "+ 新增", importBtn: "导入", exportBtn: "导出",
+    colNo: "序", colName: "名称 / 数据", colPeriod: "周期 ms", colLoop: "循环",
+    namePh: "按钮名称", dataPh: "数据",
+    seqLoop: "顺序循环", interval: "间隔", startSeq: "启动顺序循环", stopSeq: "停止顺序循环", stopAll: "全部停止",
+    frames: "帧", uptime: "运行", open: "打开串口", close: "关闭串口", notConnected: "未连接", opened: "已打开",
+    noTimer: "无周期任务",
+    demoOn: "当前为模拟设备，不访问真实硬件。取消勾选即接入本机串口。",
+    realOn: "已接入 Web Serial：点「选择端口」授权设备后再打开。",
+    unsupported: "此浏览器不支持 Web Serial，已锁定演示模式（请用 Chrome / Edge，且需 HTTPS 或 localhost）。"
+  },
+  en: {
+    app: "Serial Assistant", port: "Port", baud: "Baud", dataBits: "Data", parity: "Parity", stopBits: "Stop",
+    flow: "Flow", none: "None", autoReconnect: "Auto-reconnect",
+    demoMode: "Demo mode", pickPort: "Choose port…", rescan: "Rescan",
+    framing: "Framing", byLine: "By line (\\n)", byIdle: "Idle timeout", byRaw: "Raw chunks", idleTip: "Idle gap that ends a frame",
+    recv: "Receive", timestamp: "Timestamp", autoScroll: "Auto-scroll", showTx: "Show TX",
+    filterPh: "Filter / highlight…", onlyMatch: "Matches only", saveLog: "Save log", clear: "Clear",
+    noData: "No data — open the port to start receiving",
+    single: "Single send", eolLabel: "EOL", sendBtn: "Send", singlePh: "Type payload, Ctrl+Enter to send",
+    period: "Every", loop: "Loop", stop: "Stop", bytes: "bytes",
+    checksum: "Checksum", appendHint: "click to append to payload",
+    multi: "Multi send", add: "+ Add", importBtn: "Import", exportBtn: "Export",
+    colNo: "#", colName: "Name / payload", colPeriod: "Every ms", colLoop: "Loop",
+    namePh: "Button name", dataPh: "Payload",
+    seqLoop: "Sequence loop", interval: "Gap", startSeq: "Start sequence", stopSeq: "Stop sequence", stopAll: "Stop all",
+    frames: "fr", uptime: "Uptime", open: "Open port", close: "Close port", notConnected: "Disconnected", opened: "open",
+    noTimer: "No periodic task",
+    demoOn: "Simulated device — no real hardware touched. Untick to use a local serial port.",
+    realOn: "Web Serial active — choose a port to grant access, then open it.",
+    unsupported: "This browser has no Web Serial; demo mode is locked (use Chrome / Edge over HTTPS or localhost)."
+  }
+};
+let UID = 1;
+
+function pad(n, w) { return String(n).padStart(w, "0"); }
+function stamp(d) { return pad(d.getHours(), 2) + ":" + pad(d.getMinutes(), 2) + ":" + pad(d.getSeconds(), 2) + "." + pad(d.getMilliseconds(), 3); }
+function toBytes(str, hex) {
+  if (hex) {
+    const t = (str || "").replace(/0x/gi, " ").match(/[0-9a-f]{1,2}/gi) || [];
+    return t.map(function (h) { return parseInt(h, 16) & 0xff; });
+  }
+  const out = [];
+  for (const ch of String(str || "")) {
+    const c = ch.codePointAt(0);
+    if (c < 0x80) out.push(c);
+    else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+    else out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+  }
+  return out;
+}
+function hexStr(b) { return b.map(function (x) { return pad(x.toString(16).toUpperCase(), 2); }).join(" "); }
+function asciiStr(b) {
+  return b.map(function (x) {
+    if (x === 13) return "\\r"; if (x === 10) return "\\n"; if (x === 9) return "\\t";
+    return x >= 32 && x < 127 ? String.fromCharCode(x) : ".";
+  }).join("");
+}
+function crc16modbus(b) { let c = 0xffff; for (const x of b) { c ^= x; for (let i = 0; i < 8; i++) c = (c & 1) ? (c >> 1) ^ 0xa001 : c >> 1; } return c & 0xffff; }
+function crc16ccitt(b) { let c = 0xffff; for (const x of b) { c ^= x << 8; for (let i = 0; i < 8; i++) c = (c & 0x8000) ? ((c << 1) ^ 0x1021) & 0xffff : (c << 1) & 0xffff; } return c & 0xffff; }
+const SUPPORTED = typeof navigator !== "undefined" && !!navigator.serial;
+
+class Component extends DCLogic {
+  state = {
+    lang: "zh", theme: "dark",
+    demo: true, supported: SUPPORTED,
+    realPorts: [], port: "demo:0",
+    connected: false, opening: false, baud: 115200, dataBits: "8", parity: "none", stopBits: "1", flow: "none",
+    autoReconnect: true, reconnecting: false,
+    framing: "line", idleMs: 20,
+    log: [], rxMode: "ascii", showTs: true, autoScroll: true, showTx: true, filter: "", onlyMatch: false,
+    single: "AT+VER?", txHex: false, eol: "crlf", singleInterval: 1000, singleLoop: false,
+    presets: DEFAULT_PRESETS.map(function (p) { return { id: UID++, name: p.nameZh, nameEn: p.nameEn, data: p.data, hex: p.hex, interval: p.interval, seq: p.seq, loop: false }; }),
+    seqInterval: 300, seqRunning: false,
+    rxBytes: 0, txBytes: 0, rxFrames: 0, txFrames: 0, since: 0, now: Date.now(), rate: 0
+  };
+  timers = {};
+  seqIdx = 0;
+  logEl = null;
+  fileEl = null;
+  // real serial handles
+  serialPorts = [];      // SerialPort objects, index matches state.realPorts
+  activePort = null;
+  reader = null;
+  writer = null;
+  reading = false;
+  rxBuf = [];
+  idleTimer = null;
+  rxWindow = 0;
+  pending = [];
+
+  componentDidMount() {
+    const l = this.props.startLang || localStorage.getItem("sa.lang");
+    const th = this.props.startTheme || localStorage.getItem("sa.theme");
+    const patch = {};
+    if (l === "zh" || l === "en") patch.lang = l;
+    if (th === "dark" || th === "light") patch.theme = th;
+    if (patch.lang === "en") patch.presets = this.state.presets.map(function (p) { return Object.assign({}, p, { name: p.nameEn }); });
+    if (this.props.demoMode === false && SUPPORTED) patch.demo = false;
+    if (Object.keys(patch).length) this.setState(patch);
+
+    this.tick = setInterval(() => {
+      this.flushLog();
+      this.setState({ now: Date.now(), rate: this.rxWindow * 2 });
+      this.rxWindow = 0;
+    }, 500);
+
+    this.sys(SUPPORTED
+      ? (patch.lang === "en" ? "Web Serial available — demo mode on, untick to use real hardware" : "已检测到 Web Serial 支持 — 当前演示模式，取消勾选即可接入真实串口")
+      : (patch.lang === "en" ? "Web Serial not available — demo mode locked" : "浏览器不支持 Web Serial — 已锁定演示模式"));
+
+    if (SUPPORTED) {
+      navigator.serial.getPorts().then((list) => this.absorbPorts(list)).catch(() => {});
+      this.onDisconnectEvt = (e) => {
+        if (this.activePort && e.target === this.activePort) this.lost();
+        navigator.serial.getPorts().then((list) => this.absorbPorts(list)).catch(() => {});
+      };
+      this.onConnectEvt = () => navigator.serial.getPorts().then((list) => this.absorbPorts(list)).catch(() => {});
+      navigator.serial.addEventListener("disconnect", this.onDisconnectEvt);
+      navigator.serial.addEventListener("connect", this.onConnectEvt);
+    }
+  }
+  componentWillUnmount() {
+    clearInterval(this.tick);
+    this.stopAll();
+    this.closeReal();
+    if (SUPPORTED && this.onDisconnectEvt) {
+      navigator.serial.removeEventListener("disconnect", this.onDisconnectEvt);
+      navigator.serial.removeEventListener("connect", this.onConnectEvt);
+    }
+  }
+  componentDidUpdate() { if (this.state.autoScroll && this.logEl) this.logEl.scrollTop = this.logEl.scrollHeight; }
+
+  /* ---------- port bookkeeping ---------- */
+  portLabel(p, i) {
+    let info = {};
+    try { info = p.getInfo() || {}; } catch (e) {}
+    const vid = info.usbVendorId, pid = info.usbProductId;
+    const id = (vid != null && pid != null) ? " · " + pad(vid.toString(16).toUpperCase(), 4) + ":" + pad(pid.toString(16).toUpperCase(), 4) : "";
+    return "Serial #" + (i + 1) + id;
+  }
+  absorbPorts(list) {
+    this.serialPorts = list.slice();
+    const descs = list.map((p, i) => ({ v: "real:" + i, label: this.portLabel(p, i) }));
+    this.setState((s) => {
+      const keep = s.port.indexOf("real:") === 0 && descs.some(function (d) { return d.v === s.port; });
+      return { realPorts: descs, port: s.demo ? s.port : (keep ? s.port : (descs[0] ? descs[0].v : "")) };
+    });
+  }
+
+  /* ---------- logging (batched) ---------- */
+  push(dir, bytes, note) { this.pending.push({ id: UID++, dir: dir, t: new Date(), bytes: bytes || [], note: note }); if (dir === "sys" || this.pending.length > 200) this.flushLog(); }
+  sys(msg) { this.push("sys", null, msg); }
+  flushLog() {
+    if (!this.pending.length) return;
+    const batch = this.pending; this.pending = [];
+    this.setState(function (s) {
+      const log = s.log.concat(batch);
+      if (log.length > 2000) log.splice(0, log.length - 2000);
+      let rb = 0, tb = 0, rf = 0, tf = 0;
+      batch.forEach(function (e) {
+        if (e.dir === "rx") { rb += e.bytes.length; rf++; }
+        if (e.dir === "tx") { tb += e.bytes.length; tf++; }
+      });
+      return { log: log, rxBytes: s.rxBytes + rb, rxFrames: s.rxFrames + rf, txBytes: s.txBytes + tb, txFrames: s.txFrames + tf };
+    });
+  }
+  cfgStr() {
+    const s = this.state;
+    const name = s.demo ? (DEMO_PORTS.find(function (p) { return p.v === s.port; }) || DEMO_PORTS[0]).v.toUpperCase() : (s.realPorts.find(function (p) { return p.v === s.port; }) || { label: "—" }).label;
+    return name + " @ " + s.baud + " " + s.dataBits + (s.parity === "none" ? "N" : s.parity === "even" ? "E" : "O") + s.stopBits;
+  }
+
+  /* ---------- framing ---------- */
+  feed(chunk) {
+    this.rxWindow += chunk.length;
+    const s = this.state;
+    if (s.framing === "raw") { this.push("rx", chunk); return; }
+    if (s.framing === "line") {
+      for (const b of chunk) {
+        this.rxBuf.push(b);
+        if (b === 10) { this.push("rx", this.rxBuf); this.rxBuf = []; }
+      }
+      if (this.rxBuf.length > 4096) { this.push("rx", this.rxBuf); this.rxBuf = []; }
+      return;
+    }
+    for (const b of chunk) this.rxBuf.push(b);
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      if (this.rxBuf.length) { this.push("rx", this.rxBuf); this.rxBuf = []; this.flushLog(); }
+    }, Math.max(1, s.idleMs));
+  }
+
+  /* ---------- real serial ---------- */
+  async pickPort() {
+    const en = this.state.lang === "en";
+    try {
+      const p = await navigator.serial.requestPort();
+      const list = await navigator.serial.getPorts();
+      this.absorbPorts(list);
+      const idx = list.indexOf(p);
+      if (idx >= 0) this.setState({ port: "real:" + idx });
+      this.sys(en ? "Port authorized" : "端口已授权，可以打开");
+    } catch (e) {
+      this.sys((en ? "No port selected: " : "未选择端口：") + (e && e.message ? e.message : e));
+    }
+  }
+  async openReal() {
+    const s = this.state, en = s.lang === "en";
+    const idx = Number(String(s.port).split(":")[1]);
+    const p = this.serialPorts[idx];
+    if (!p) { this.sys(en ? "Pick a port first" : "请先点「选择端口」授权设备"); return; }
+    this.setState({ opening: true });
+    try {
+      await p.open({
+        baudRate: Number(s.baud), dataBits: Number(s.dataBits), stopBits: Number(s.stopBits),
+        parity: s.parity, flowControl: s.flow === "hardware" ? "hardware" : "none",
+        bufferSize: 8192
+      });
+      this.activePort = p;
+      this.writer = p.writable.getWriter();
+      this.reading = true;
+      this.setState({ connected: true, opening: false, reconnecting: false, since: Date.now() });
+      this.sys((en ? "Port opened " : "串口已打开 ") + this.cfgStr());
+      this.readLoop(p);
+    } catch (e) {
+      this.setState({ opening: false });
+      this.sys((en ? "Open failed: " : "打开失败：") + (e && e.message ? e.message : e));
+    }
+  }
+  async readLoop(p) {
+    while (this.reading && p.readable) {
+      let reader;
+      try { reader = p.readable.getReader(); } catch (e) { break; }
+      this.reader = reader;
+      try {
+        while (true) {
+          const r = await reader.read();
+          if (r.done) break;
+          if (r.value && r.value.length) this.feed(Array.from(r.value));
+        }
+      } catch (e) {
+        if (this.reading) { this.sys((this.state.lang === "en" ? "Read error: " : "读取错误：") + (e && e.message ? e.message : e)); this.lost(); return; }
+      } finally {
+        try { reader.releaseLock(); } catch (e) {}
+      }
+    }
+  }
+  async closeReal() {
+    this.reading = false;
+    clearTimeout(this.idleTimer);
+    try { if (this.reader) await this.reader.cancel(); } catch (e) {}
+    try { if (this.writer) { this.writer.releaseLock(); } } catch (e) {}
+    this.reader = null; this.writer = null;
+    try { if (this.activePort) await this.activePort.close(); } catch (e) {}
+    this.rxBuf = [];
+  }
+  lost() {
+    const en = this.state.lang === "en";
+    this.stopAll();
+    this.reading = false;
+    this.setState(function (s) {
+      return { connected: false, singleLoop: false, seqRunning: false, since: 0, presets: s.presets.map(function (p) { return Object.assign({}, p, { loop: false }); }) };
+    });
+    this.sys(en ? "! Connection lost" : "! 连接意外断开");
+    this.closeReal();
+    if (this.state.autoReconnect) this.attempt(1);
+  }
+  attempt(n) {
+    const max = this.props.reconnectAttempts || 5;
+    const en = this.state.lang === "en";
+    if (n > max) { this.setState({ reconnecting: false }); this.sys(en ? "Reconnect failed after " + max + " attempts" : "重连失败，已尝试 " + max + " 次"); return; }
+    this.setState({ reconnecting: true });
+    this.sys((en ? "Reconnecting… " : "正在重连… ") + "(" + n + "/" + max + ")");
+    this.timers["rc" + n] = setTimeout(async () => {
+      if (this.state.demo) {
+        if (n >= 2) { this.setState({ connected: true, reconnecting: false, since: Date.now() }); this.sys((en ? "Reconnected " : "重连成功 ") + this.cfgStr()); }
+        else this.attempt(n + 1);
+        return;
+      }
+      try {
+        const list = await navigator.serial.getPorts();
+        this.absorbPorts(list);
+        const idx = Number(String(this.state.port).split(":")[1]);
+        const p = this.serialPorts[idx];
+        if (!p) throw new Error("port gone");
+        await this.openRealDirect(p);
+        this.setState({ reconnecting: false });
+        this.sys((en ? "Reconnected " : "重连成功 ") + this.cfgStr());
+      } catch (e) { this.attempt(n + 1); }
+    }, 1400);
+  }
+  async openRealDirect(p) {
+    const s = this.state;
+    await p.open({
+      baudRate: Number(s.baud), dataBits: Number(s.dataBits), stopBits: Number(s.stopBits),
+      parity: s.parity, flowControl: s.flow === "hardware" ? "hardware" : "none", bufferSize: 8192
+    });
+    this.activePort = p;
+    this.writer = p.writable.getWriter();
+    this.reading = true;
+    this.setState({ connected: true, since: Date.now() });
+    this.readLoop(p);
+  }
+
+  /* ---------- send ---------- */
+  async send(data, hex, addEol) {
+    const s = this.state, en = s.lang === "en";
+    if (!s.connected) { this.sys(en ? "Port closed — send ignored" : "串口未打开，发送已忽略"); return; }
+    let bytes = toBytes(data, hex);
+    if (addEol && !hex) bytes = bytes.concat(toBytes(EOL[s.eol], false));
+    if (!bytes.length) return;
+    if (s.demo) {
+      this.push("tx", bytes);
+      if (this.props.simulateDevice !== false) setTimeout(() => this.demoReply(data, hex, bytes), 60 + Math.random() * 120);
+      return;
+    }
+    if (!this.writer) return;
+    try {
+      await this.writer.write(new Uint8Array(bytes));
+      this.push("tx", bytes);
+    } catch (e) {
+      this.sys((en ? "Write error: " : "写入错误：") + (e && e.message ? e.message : e));
+      this.lost();
+    }
+  }
+  demoReply(data, hex, bytes) {
+    if (!this.state.connected) return;
+    let r;
+    if (hex) {
+      const fn = bytes[1];
+      if (fn === 3 || fn === 4) { const v = [0x01, fn, 0x04, 0x01, 0x2c, 0x02, 0x08]; const c = crc16modbus(v); r = v.concat([c & 0xff, c >> 8]); }
+      else if (fn === 5) r = bytes.slice();
+      else r = [0xaa, 0x55, 0x01, 0x00, 0x00, 0x5a];
+    } else {
+      const t = String(data || "").trim().toUpperCase();
+      if (t.indexOf("VER") >= 0) r = toBytes("+VER: SA-2100 FW 1.4.2\r\nOK\r\n", false);
+      else if (t.indexOf("STATUS") >= 0) r = toBytes("+STATUS: RUN,IN=0x0F,OUT=0x02,T=24.6C\r\nOK\r\n", false);
+      else if (t.indexOf("RST") >= 0) r = toBytes("\r\nREBOOTING...\r\nready\r\n", false);
+      else r = toBytes("OK\r\n", false);
+    }
+    this.feed(r);
+  }
+
+  stopAll() { Object.keys(this.timers).forEach((k) => { clearInterval(this.timers[k]); clearTimeout(this.timers[k]); }); this.timers = {}; }
+
+  renderVals() {
+    const s = this.state;
+    const t = T[s.lang];
+    const en = s.lang === "en";
+    const on = s.connected;
+    const hexView = s.rxMode === "hex";
+    const f = s.filter.trim();
+    const fl = f.toLowerCase();
+
+    const lines = s.log.filter(function (e) {
+      if (e.dir === "tx" && !s.showTx) return false;
+      if (!fl || !s.onlyMatch) return true;
+      const body = e.note || (hexView ? hexStr(e.bytes) : asciiStr(e.bytes));
+      return body.toLowerCase().indexOf(fl) >= 0;
+    }).slice(-600).map(function (e) {
+      const isRx = e.dir === "rx", isSys = e.dir === "sys";
+      const body = isSys ? e.note : (hexView ? hexStr(e.bytes) : asciiStr(e.bytes));
+      let pre = body, hit = "", post = "";
+      if (fl) {
+        const i = body.toLowerCase().indexOf(fl);
+        if (i >= 0) { pre = body.slice(0, i); hit = body.slice(i, i + f.length); post = body.slice(i + f.length); }
+      }
+      return {
+        id: e.id, ts: s.showTs ? stamp(e.t) : "",
+        arrow: isSys ? "·" : isRx ? "◀" : "▶",
+        arrowColor: isSys ? "var(--faint)" : isRx ? "var(--green)" : "var(--blue)",
+        color: isSys ? "var(--dim)" : isRx ? "var(--greenText)" : "var(--blueText)",
+        pre: pre, hit: hit, post: post
+      };
+    });
+
+    const runningCount = (s.singleLoop ? 1 : 0) + s.presets.filter(function (p) { return p.loop; }).length + (s.seqRunning ? 1 : 0);
+    const seqOn = s.presets.filter(function (p) { return p.seq; });
+    const upSec = on && s.since ? Math.max(0, Math.floor((Math.max(s.now, Date.now()) - s.since) / 1000)) : 0;
+    const singleBytesArr = toBytes(s.single, s.txHex);
+    const singleBytes = singleBytesArr.length + (s.txHex ? 0 : EOL[s.eol].length);
+
+    const tab = (a) => ({ bg: a ? "var(--blue)" : "var(--panel2)", fg: a ? "var(--inv)" : "var(--dim)" });
+    const rxA = tab(!hexView), rxH = tab(hexView), txA = tab(!s.txHex), txH = tab(s.txHex);
+    const loopStyle = (a) => ({ bg: a ? "var(--amber)" : "var(--panel2)", fg: a ? "var(--inv)" : "var(--dim)", border: a ? "var(--amber)" : "var(--line)" });
+    const sl = loopStyle(s.singleLoop), sq = loopStyle(s.seqRunning);
+
+    const setPreset = (id, patch) => this.setState(function (st) {
+      return { presets: st.presets.map(function (p) { return p.id === id ? Object.assign({}, p, patch) : p; }) };
+    });
+    const appendHex = (h) => this.setState(function (st) {
+      if (st.txHex) return { single: (st.single.trim() + " " + h).trim() };
+      return { single: (hexStr(toBytes(st.single, false)) + " " + h).trim(), txHex: true };
+    });
+    const mb = crc16modbus(singleBytesArr), cc = crc16ccitt(singleBytesArr);
+    const xor = singleBytesArr.reduce(function (a, b) { return a ^ b; }, 0);
+    const sum = singleBytesArr.reduce(function (a, b) { return (a + b) & 0xff; }, 0);
+
+    const portList = s.demo ? DEMO_PORTS : (s.realPorts.length ? s.realPorts : [{ v: "", label: en ? "— no authorized port —" : "— 尚无已授权端口 —" }]);
+
+    return {
+      t: t, theme: s.theme,
+      themeIcon: s.theme === "dark" ? "☀" : "☾",
+      langLabel: en ? "中文" : "EN",
+      onTheme: () => { const n = s.theme === "dark" ? "light" : "dark"; localStorage.setItem("sa.theme", n); this.setState({ theme: n }); },
+      onLang: () => {
+        const n = en ? "zh" : "en";
+        localStorage.setItem("sa.lang", n);
+        this.setState(function (st) {
+          return { lang: n, presets: st.presets.map(function (p, i) { const d = DEFAULT_PRESETS[i]; return d && (p.name === d.nameZh || p.name === d.nameEn) ? Object.assign({}, p, { name: n === "en" ? d.nameEn : d.nameZh }) : p; }) };
+        });
+      },
+
+      demo: s.demo, demoLocked: !s.supported,
+      modeBg: s.demo ? "var(--amberSoft)" : "var(--panel2)",
+      modeFg: s.demo ? "var(--amber)" : "var(--dim)",
+      modeNote: !s.supported ? t.unsupported : s.demo ? t.demoOn : t.realOn,
+      onDemo: (e) => {
+        const d = e.target.checked;
+        if (on) { this.sys(en ? "Close the port before switching mode" : "请先关闭串口再切换模式"); return; }
+        this.setState({ demo: d, port: d ? "demo:0" : (s.realPorts[0] ? s.realPorts[0].v : "") });
+        if (!d) navigator.serial.getPorts().then((l) => this.absorbPorts(l)).catch(() => {});
+      },
+      framing: s.framing, onFraming: (e) => this.setState({ framing: e.target.value }),
+      idleMs: s.idleMs, onIdleMs: (e) => this.setState({ idleMs: Math.min(2000, Math.max(1, Number(e.target.value) || 20)) }),
+
+      portList: portList, baudList: BAUDS,
+      port: s.port, baud: s.baud, dataBits: s.dataBits, parity: s.parity, stopBits: s.stopBits, flow: s.flow,
+      connected: on,
+      pickLabel: s.demo ? t.rescan : t.pickPort,
+      onPickPort: () => {
+        if (s.demo) { this.sys(en ? "Demo ports listed" : "已列出演示端口"); return; }
+        if (!s.supported) { this.sys(t.unsupported); return; }
+        this.pickPort();
+      },
+      ledColor: on ? "var(--green)" : s.reconnecting || s.opening ? "var(--amber)" : "var(--faint)",
+      ledAnim: on || s.reconnecting || s.opening ? "pulse 1.6s ease-in-out infinite" : "none",
+      statusText: on ? (s.demo ? "DEMO " : "") + t.opened : s.reconnecting ? (en ? "reconnecting…" : "重连中…") : s.opening ? (en ? "opening…" : "打开中…") : t.notConnected,
+      connectLabel: on ? t.close : t.open,
+      connectBg: on ? "var(--redBg)" : "var(--green)",
+      connectFg: on ? "var(--redText)" : "var(--inv)",
+      onPort: (e) => this.setState({ port: e.target.value }),
+      onBaud: (e) => this.setState({ baud: Number(e.target.value) }),
+      onDataBits: (e) => this.setState({ dataBits: e.target.value }),
+      onParity: (e) => this.setState({ parity: e.target.value }),
+      onStopBits: (e) => this.setState({ stopBits: e.target.value }),
+      onFlow: (e) => this.setState({ flow: e.target.value }),
+      autoReconnect: s.autoReconnect,
+      onAutoReconnect: (e) => this.setState({ autoReconnect: e.target.checked }),
+      onToggleConnect: () => {
+        if (on) {
+          this.stopAll();
+          this.setState({ connected: false, reconnecting: false, singleLoop: false, seqRunning: false, since: 0, presets: s.presets.map(function (p) { return Object.assign({}, p, { loop: false }); }) });
+          if (!s.demo) this.closeReal();
+          this.sys(en ? "Port closed" : "串口已关闭");
+        } else if (s.demo) {
+          this.setState({ connected: true, reconnecting: false, since: Date.now() });
+          this.sys((en ? "Port opened " : "串口已打开 ") + this.cfgStr());
+        } else this.openReal();
+      },
+
+      lines: lines, empty: lines.length === 0,
+      logRef: (el) => { this.logEl = el; },
+      rxAsciiBg: rxA.bg, rxAsciiFg: rxA.fg, rxHexBg: rxH.bg, rxHexFg: rxH.fg,
+      onRxAscii: () => this.setState({ rxMode: "ascii" }),
+      onRxHex: () => this.setState({ rxMode: "hex" }),
+      showTs: s.showTs, onShowTs: (e) => this.setState({ showTs: e.target.checked }),
+      autoScroll: s.autoScroll, onAutoScroll: (e) => this.setState({ autoScroll: e.target.checked }),
+      showTx: s.showTx, onShowTx: (e) => this.setState({ showTx: e.target.checked }),
+      filter: s.filter, onFilter: (e) => this.setState({ filter: e.target.value }),
+      onlyMatch: s.onlyMatch, onOnlyMatch: (e) => this.setState({ onlyMatch: e.target.checked }),
+      onClear: () => this.setState({ log: [], rxBytes: 0, txBytes: 0, rxFrames: 0, txFrames: 0 }),
+      onSaveLog: () => {
+        const txt = s.log.map(function (e) { return stamp(e.t) + " " + (e.dir === "sys" ? "[--] " + e.note : (e.dir === "rx" ? "[RX] " : "[TX] ") + (hexView ? hexStr(e.bytes) : asciiStr(e.bytes))); }).join("\n");
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([txt], { type: "text/plain" }));
+        a.download = "serial-" + Date.now() + ".log"; a.click();
+        this.sys((en ? "Log exported, " : "日志已导出，") + s.log.length + (en ? " lines" : " 行"));
+      },
+
+      single: s.single, onSingle: (e) => this.setState({ single: e.target.value }),
+      onSingleKey: (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.send(s.single, s.txHex, true); } },
+      txAsciiBg: txA.bg, txAsciiFg: txA.fg, txHexBg: txH.bg, txHexFg: txH.fg,
+      onTxAscii: () => this.setState({ txHex: false }),
+      onTxHex: () => this.setState({ txHex: true, single: hexStr(toBytes(s.single, false)) }),
+      eol: s.eol, onEol: (e) => this.setState({ eol: e.target.value }),
+      singleHint: singleBytes + " " + t.bytes + (s.txHex ? " · HEX" : ""),
+      onSendSingle: () => this.send(s.single, s.txHex, true),
+      singleInterval: s.singleInterval,
+      onSingleInterval: (e) => this.setState({ singleInterval: Math.max(10, Number(e.target.value) || 10) }),
+      singleLoopLabel: s.singleLoop ? t.stop : t.loop,
+      singleLoopBg: sl.bg, singleLoopFg: sl.fg, singleLoopBorder: sl.border,
+      onSingleLoop: () => {
+        if (s.singleLoop) { clearInterval(this.timers.single); delete this.timers.single; this.setState({ singleLoop: false }); return; }
+        if (!on) { this.sys(en ? "Open the port first" : "串口未打开，无法启动循环"); return; }
+        this.send(s.single, s.txHex, true);
+        this.timers.single = setInterval(() => this.send(this.state.single, this.state.txHex, true), Math.max(10, s.singleInterval));
+        this.setState({ singleLoop: true });
+      },
+
+      checks: [
+        { name: "CRC16/MODBUS", value: pad(mb.toString(16).toUpperCase(), 4), tip: "Modbus RTU, LSB first", onAppend: () => appendHex(pad((mb & 0xff).toString(16).toUpperCase(), 2) + " " + pad((mb >> 8).toString(16).toUpperCase(), 2)) },
+        { name: "CRC16/CCITT", value: pad(cc.toString(16).toUpperCase(), 4), tip: "CCITT-FALSE, MSB first", onAppend: () => appendHex(pad((cc >> 8).toString(16).toUpperCase(), 2) + " " + pad((cc & 0xff).toString(16).toUpperCase(), 2)) },
+        { name: "SUM8", value: pad(sum.toString(16).toUpperCase(), 2), tip: "8-bit additive checksum", onAppend: () => appendHex(pad(sum.toString(16).toUpperCase(), 2)) },
+        { name: "XOR8", value: pad(xor.toString(16).toUpperCase(), 2), tip: "8-bit XOR / LRC", onAppend: () => appendHex(pad(xor.toString(16).toUpperCase(), 2)) }
+      ],
+
+      presetCount: s.presets.length + (en ? " items · " : " 条 · ") + seqOn.length + (en ? " in sequence" : " 条在序列中"),
+      presets: s.presets.map((p, i) => {
+        const ls = loopStyle(p.loop);
+        return {
+          id: p.id, no: pad(i + 1, 2), name: p.name, data: p.data, interval: p.interval, seq: p.seq,
+          mode: p.hex ? "HEX" : "ASC",
+          hexFg: p.hex ? "var(--amber)" : "var(--dim)",
+          rowBg: p.loop ? "var(--amberRow)" : "transparent",
+          loopIcon: p.loop ? "■" : "↻", loopBg: ls.bg, loopFg: ls.fg, loopBorder: ls.border,
+          onName: (e) => setPreset(p.id, { name: e.target.value }),
+          onData: (e) => setPreset(p.id, { data: e.target.value }),
+          onInterval: (e) => setPreset(p.id, { interval: Math.max(10, Number(e.target.value) || 10) }),
+          onSeq: (e) => setPreset(p.id, { seq: e.target.checked }),
+          onHex: () => setPreset(p.id, { hex: !p.hex, data: p.hex ? asciiStr(toBytes(p.data, true)) : hexStr(toBytes(p.data, false)) }),
+          onDelete: () => { clearInterval(this.timers["p" + p.id]); delete this.timers["p" + p.id]; this.setState(function (st) { return { presets: st.presets.filter(function (q) { return q.id !== p.id; }) }; }); },
+          onSend: () => this.send(p.data, p.hex, false),
+          onLoop: () => {
+            const key = "p" + p.id;
+            if (p.loop) { clearInterval(this.timers[key]); delete this.timers[key]; setPreset(p.id, { loop: false }); return; }
+            if (!on) { this.sys(en ? "Open the port first" : "串口未打开，无法启动循环"); return; }
+            this.send(p.data, p.hex, false);
+            this.timers[key] = setInterval(() => {
+              const cur = this.state.presets.find(function (q) { return q.id === p.id; });
+              if (cur) this.send(cur.data, cur.hex, false);
+            }, Math.max(10, p.interval));
+            setPreset(p.id, { loop: true });
+          }
+        };
+      }),
+      onAddPreset: () => this.setState(function (st) {
+        return { presets: st.presets.concat([{ id: UID++, name: (en ? "New command " : "新指令 ") + (st.presets.length + 1), data: "", hex: false, interval: 1000, loop: false, seq: false }]) };
+      }),
+      fileRef: (el) => { this.fileEl = el; },
+      onImport: () => { if (this.fileEl) this.fileEl.click(); },
+      onFile: (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const rd = new FileReader();
+        rd.onload = () => {
+          try {
+            const arr = JSON.parse(rd.result);
+            if (!Array.isArray(arr)) throw new Error("not an array");
+            this.setState({
+              presets: arr.slice(0, 64).map(function (p) {
+                return { id: UID++, name: String(p.name || "cmd"), data: String(p.data || ""), hex: !!p.hex, interval: Math.max(10, Number(p.interval) || 1000), loop: false, seq: !!p.seq };
+              })
+            });
+            this.sys((en ? "Imported " : "已导入 ") + arr.length + (en ? " presets" : " 条预设"));
+          } catch (err) { this.sys(en ? "Import failed: invalid JSON" : "导入失败：JSON 格式不正确"); }
+        };
+        rd.readAsText(file);
+        e.target.value = "";
+      },
+      onExport: () => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(s.presets.map(function (p) { return { name: p.name, data: p.data, hex: p.hex, interval: p.interval, seq: p.seq }; }), null, 2)], { type: "application/json" }));
+        a.download = "serial-presets.json"; a.click();
+        this.sys(en ? "Presets exported" : "发送预设已导出");
+      },
+
+      seqInterval: s.seqInterval,
+      onSeqInterval: (e) => this.setState({ seqInterval: Math.max(10, Number(e.target.value) || 10) }),
+      seqHint: seqOn.length ? (en ? seqOn.length + " selected, in order" : "按序依次发送 " + seqOn.length + " 条") : (en ? "tick rows on the left" : "先勾选左侧序号复选框"),
+      seqLabel: s.seqRunning ? t.stopSeq : t.startSeq,
+      seqBg: sq.bg, seqFg: sq.fg, seqBorder: sq.border,
+      onSeqLoop: () => {
+        if (s.seqRunning) { clearInterval(this.timers.seq); delete this.timers.seq; this.setState({ seqRunning: false }); return; }
+        if (!on) { this.sys(en ? "Open the port first" : "串口未打开，无法启动循环"); return; }
+        if (!seqOn.length) { this.sys(en ? "Tick at least one command" : "请先勾选要参与顺序循环的指令"); return; }
+        this.seqIdx = 0;
+        const step = () => {
+          const list = this.state.presets.filter(function (p) { return p.seq; });
+          if (!list.length) return;
+          const item = list[this.seqIdx % list.length];
+          this.seqIdx++;
+          this.send(item.data, item.hex, false);
+        };
+        step();
+        this.timers.seq = setInterval(step, Math.max(10, s.seqInterval));
+        this.setState({ seqRunning: true });
+      },
+      onStopAll: () => {
+        this.stopAll();
+        this.setState({ singleLoop: false, seqRunning: false, presets: s.presets.map(function (p) { return Object.assign({}, p, { loop: false }); }) });
+        this.sys(en ? "All periodic sends stopped" : "已停止全部周期发送");
+      },
+
+      cfgSummary: this.cfgStr() + " · " + t.flow + " " + (s.flow === "none" ? t.none : "RTS/CTS"),
+      rxBytes: s.rxBytes, txBytes: s.txBytes, rxFrames: s.rxFrames, txFrames: s.txFrames,
+      uptime: on ? pad(Math.floor(upSec / 60), 2) + ":" + pad(upSec % 60, 2) : "--:--",
+      rateNote: on ? s.rate + " B/s" : "",
+      timerNote: runningCount ? runningCount + (en ? " periodic task(s) running" : " 个周期任务运行中") : t.noTimer
+    };
+  }
+}
+
+</script>
+</body>
+</html>
