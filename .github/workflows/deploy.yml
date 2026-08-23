@@ -40,7 +40,12 @@ jobs:
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
 
+      # enablement: 仓库尚未开启 Pages 时自动开启并把来源设为 GitHub Actions。
+      # 没有它，首次部署会以「Get Pages site failed ... Not Found」失败 ——
+      # 必须先手动到 Settings → Pages 里选一次来源才能跑通。
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
