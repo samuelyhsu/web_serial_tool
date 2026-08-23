@@ -5,6 +5,14 @@ on:
   # 供 deploy.yml 调用：main 分支的校验作为部署的前置关卡跑，
   # 而不是和部署并行 —— 并行的话测试挂了照样会发布上线
   workflow_call:
+    inputs:
+      skip-build:
+        description: >-
+          调用方自己会做一次生产构建时传 true，避免同一条流水线把 vite build 跑两遍。
+          只影响 workflow_call；PR 触发时构建始终执行 ——
+          PR 上没有别的地方会跑打包器，这一步不能丢。
+        type: boolean
+        default: false
 
 jobs:
   verify:
@@ -31,5 +39,10 @@ jobs:
       - name: Test
         run: npm run test:coverage
 
+      # 被 deploy.yml 调用时跳过：那条流水线紧接着就会用 BASE_PATH 做一次真正的
+      # 生产构建，同样能验证打包器，重复构建只是白等。
+      # 条件里显式写出 pull_request，不依赖「inputs 为空时 null 强转 false」这条
+      # 隐晦规则 —— 万一理解有偏差，PR 会静默失去打包器验证，这种漏洞没人会察觉。
       - name: Build
+        if: ${{ github.event_name == 'pull_request' || !inputs.skip-build }}
         run: npm run build
