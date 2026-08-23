@@ -16,10 +16,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 先把 CI 的全套校验（typecheck / lint / format / 测试 / 构建）跑一遍，
-  # 通过了才允许构建产物并发布
+  # 先把 CI 的校验（typecheck / lint / format / 测试）跑一遍，通过了才允许发布。
+  # 打包器的验证交给下面的 build job —— 它用 BASE_PATH 构建的正是要发布的产物
   verify:
     uses: ./.github/workflows/ci.yml
+    with:
+      # 下面的 build job 马上会用 BASE_PATH 再构建一次，这里不必重复
+      skip-build: true
 
   build:
     needs: verify
