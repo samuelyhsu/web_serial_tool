@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { resolveFraming } from '@/core/framing/frameAssembler';
 import { SerialSession, type SessionState } from '@/core/session/serialSession';
 import { TransportError } from '@/core/transport/errors';
 import { describePorts, portKey, type PortDescriptor } from '@/core/transport/portRegistry';
@@ -9,6 +10,7 @@ import { readStored, readStoredJson, writeStored } from '@/lib/storage';
 import { useLogStore } from './logStore';
 import { portDisplayLabel, usePortAliasStore } from './portAliasStore';
 import { useTasksStore } from './tasksStore';
+import { useUiStore } from './uiStore';
 
 /**
  * 波特率候选值。覆盖从传统低速到各类 USB-serial 芯片的高速档：
@@ -226,10 +228,6 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
   pendingBytes: () => session.pendingBytes,
 }));
 
-/**
- * 订阅设备插拔事件，保持端口列表新鲜。
- * 返回取消订阅函数，由 App 在卸载时调用。
- */
 useConnectionStore.subscribe(({ options, autoReconnect }) => {
   saveSoon(SETTINGS_KEY, { ...options, autoReconnect });
 });
@@ -237,6 +235,26 @@ useConnectionStore.subscribe(({ options, autoReconnect }) => {
 /** 还原出来的自动重连开关要同步给会话，否则存的是关、实际仍会重连。 */
 session.setReconnectSettings({ enabled: useConnectionStore.getState().autoReconnect });
 
+/**
+ * 把接收区的分帧选择推给会话。
+ *
+ * 分帧配置放在 uiStore 里 —— 它是接收区的显示选择，而且「换行分帧是否生效」取决于
+ * 当前是不是 TXT 视图，视图本身也在那边。会话这侧只需订阅结果。
+ */
+function syncFraming(): void {
+  const { idleFrameMs, lineFraming, view } = useUiStore.getState();
+  session.setFraming(
+    resolveFraming({ idleMs: idleFrameMs, lineFraming, textView: view === 'text' }),
+  );
+}
+
+useUiStore.subscribe(syncFraming);
+syncFraming(); // 还原出来的偏好要立刻生效，不能等用户先动一下控件
+
+/**
+ * 订阅设备插拔事件，保持端口列表新鲜。
+ * 返回取消订阅函数，由 App 在卸载时调用。
+ */
 export function watchPortChanges(): () => void {
   if (!supported) return () => undefined;
 

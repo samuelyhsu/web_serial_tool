@@ -38,6 +38,13 @@ export const zh: Messages = {
   showTx: '显示发送',
   filterPlaceholder: '过滤 / 高亮关键字…',
   onlyMatch: '仅匹配',
+
+  idleFrame: '空闲分帧',
+  idleFrameUnit: 'ms',
+  idleFrameHint: '静默超过该时长即成一帧；0 = 原样显示，不做分帧',
+  lineFrame: '按换行分帧',
+  lineFrameHint: '见到换行符即成一帧，与空闲分帧互斥；仅 TXT 视图可用',
+  rawFrameHint: '原样显示：驱动每交付一次就是一行',
   saveLog: '保存日志',
   clear: '清空',
   noData: '无数据',

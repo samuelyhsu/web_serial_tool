@@ -197,6 +197,32 @@ describe('接收区显示偏好持久化', () => {
     expect(ui.onlyMatch).toBe(true);
   });
 
+  it('分帧设置刷新后还在', async () => {
+    let app = await reload();
+    app.ui.useUiStore.getState().setIdleFrameMs(50);
+    app.ui.useUiStore.getState().setLineFraming(true);
+    app.persist.flushPersist();
+
+    app = await reload();
+    expect(app.ui.useUiStore.getState().idleFrameMs).toBe(50);
+    expect(app.ui.useUiStore.getState().lineFraming).toBe(true);
+  });
+
+  it('空闲分帧存 0（原样显示）不会被当成缺省值覆盖掉', async () => {
+    let app = await reload();
+    app.ui.useUiStore.getState().setIdleFrameMs(0);
+    app.persist.flushPersist();
+
+    app = await reload();
+    expect(app.ui.useUiStore.getState().idleFrameMs).toBe(0);
+  });
+
+  it('存量里越界的空闲分帧退回默认 10ms', async () => {
+    localStorage.setItem('wst.viewPrefs', JSON.stringify({ idleFrameMs: 999999 }));
+    const app = await reload();
+    expect(app.ui.useUiStore.getState().idleFrameMs).toBe(10);
+  });
+
   it('过滤词有意不持久化 —— 日志本身刷新后就是空的', async () => {
     let app = await reload();
     app.ui.useUiStore.getState().setFilter('ERROR');

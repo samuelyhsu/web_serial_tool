@@ -1,3 +1,4 @@
+import { FrameAssembler, type FramingConfig } from '../framing/frameAssembler';
 import { ReconnectController } from '../scheduler/reconnectController';
 import { TransportError } from '../transport/errors';
 import type { ConnectionOptions, Transport } from '../transport/types';
@@ -7,7 +8,7 @@ export type SessionState = 'closed' | 'opening' | 'open' | 'reconnecting';
 export type Direction = 'rx' | 'tx';
 
 export interface SessionEvents {
-  /** 一帧数据（RX 为驱动的一次交付；TX 为一次写入的整体）。 */
+  /** 一帧数据（RX 为分帧后的结果；TX 为一次写入的整体）。 */
   onFrame: (direction: Direction, bytes: Uint8Array) => void;
   /** 链路上实际流过的字节数，用于速率统计。 */
   onThroughput: (direction: Direction, byteCount: number) => void;
@@ -69,6 +70,10 @@ export class SerialSession {
    * 界面显示已连接、实际却没有 transport。代际号让迟到者认出自己已被接管。
    */
   #generation = 0;
+  /** 接收分帧。默认原样分块，与引入分帧之前的行为一致。 */
+  readonly #framer = new FrameAssembler((frame) => {
+    this.#handlers.onFrame?.('rx', frame);
+  });
 
   constructor(private readonly deps: SerialSessionDeps) {}
 
@@ -86,6 +91,11 @@ export class SerialSession {
 
   setHandlers(handlers: Partial<SessionEvents>): void {
     this.#handlers = handlers;
+  }
+
+  /** 改接收分帧方式。缓冲里攒着的字节会先按旧规则交付，不会卡住也不会被重新解释。 */
+  setFraming(config: Partial<FramingConfig>): void {
+    this.#framer.configure(config);
   }
 
   setReconnectSettings(settings: Partial<ReconnectSettings>): void {
@@ -128,6 +138,8 @@ export class SerialSession {
 
     const transport = this.#transport;
     this.#detach();
+    // 把缓冲里还没成帧的尾巴交付掉，否则最后半条数据永远不会出现在日志里
+    this.#framer.flush();
     this.#setState('closed');
     if (transport) await transport.close();
     this.#notify({ code: 'port-closed' });
@@ -160,6 +172,8 @@ export class SerialSession {
     this.#reconnectController?.cancel();
     this.#reconnectController = null;
     this.#detach();
+    // 页面要走了，没人再看日志：丢弃即可，还要顺手清掉空闲分帧的定时器
+    this.#framer.reset();
     this.#state = 'closed';
   }
 
@@ -168,9 +182,9 @@ export class SerialSession {
     const transport = this.deps.createTransport(port);
     const unsubscribe = transport.subscribe({
       onData: (chunk) => {
-        // 原样分块：驱动每交付一次数据就是一帧，不做缓冲也不做拼接
+        // 速率统计走链路上真实流过的字节，与分帧无关：分帧只改变「怎么切」，不改变「收了多少」
         this.#handlers.onThroughput?.('rx', chunk.length);
-        this.#handlers.onFrame?.('rx', chunk);
+        this.#framer.push(chunk);
       },
       onError: (error) => {
         if (error.kind === 'read') {
@@ -207,6 +221,8 @@ export class SerialSession {
 
   #handleConnectionLost(): void {
     this.#detach();
+    // 掉线前收到的最后半条数据仍然有诊断价值，先交付再报掉线
+    this.#framer.flush();
     this.#notify({ code: 'connection-lost' });
 
     if (!this.#reconnect.enabled || !this.#portKey || !this.#options) {

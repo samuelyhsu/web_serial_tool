@@ -108,6 +108,87 @@ describe('关闭与在途的打开竞争', () => {
   });
 });
 
+describe('接收分帧', () => {
+  /** 只看 RX 方向，TX 不参与分帧。 */
+  function rx(harness: Harness): string[] {
+    return harness.frames.filter((f) => f.direction === 'rx').map((f) => f.text);
+  }
+
+  async function opened(): Promise<Harness> {
+    const harness = makeHarness();
+    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    return harness;
+  }
+
+  it('默认是原样分块，与引入分帧之前的行为一致', async () => {
+    const harness = await opened();
+    harness.current().emitData(encoder.encode('AB'));
+    harness.current().emitData(encoder.encode('CD'));
+    expect(rx(harness)).toEqual(['AB', 'CD']);
+  });
+
+  it('换行分帧把被切开的一行拼回成一帧', async () => {
+    const harness = await opened();
+    harness.session.setFraming({ mode: 'line' });
+    harness.current().emitData(encoder.encode('AT+'));
+    harness.current().emitData(encoder.encode('VER?\nOK\n'));
+    expect(rx(harness)).toEqual(['AT+VER?\n', 'OK\n']);
+  });
+
+  it('空闲分帧静默到点才成帧', async () => {
+    vi.useFakeTimers();
+    const harness = await opened();
+    harness.session.setFraming({ mode: 'idle', idleMs: 10 });
+    harness.current().emitData(encoder.encode('01'));
+    harness.current().emitData(encoder.encode('02'));
+    expect(rx(harness)).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(10);
+    expect(rx(harness)).toEqual(['0102']);
+    vi.useRealTimers();
+  });
+
+  it('分帧不影响速率统计 —— 它只改变怎么切，不改变收了多少', async () => {
+    const harness = await opened();
+    harness.session.setFraming({ mode: 'line' });
+    const seen: number[] = [];
+    harness.session.setHandlers({
+      onFrame: () => undefined,
+      onThroughput: (direction, count) => {
+        if (direction === 'rx') seen.push(count);
+      },
+    });
+    harness.current().emitData(encoder.encode('abc')); // 没有换行，一帧都不会产出
+    expect(seen).toEqual([3]);
+  });
+
+  it('关闭端口时把没成帧的尾巴交付出来', async () => {
+    const harness = await opened();
+    harness.session.setFraming({ mode: 'line' });
+    harness.current().emitData(encoder.encode('no newline'));
+    expect(rx(harness)).toEqual([]);
+
+    await harness.session.close();
+    expect(rx(harness)).toEqual(['no newline']);
+  });
+
+  it('掉线时同样交付尾巴 —— 断线前的最后半条最有诊断价值', async () => {
+    const harness = await opened();
+    harness.session.setFraming({ mode: 'line' });
+    harness.current().emitData(encoder.encode('partial'));
+    harness.current().emitUnplug();
+    expect(rx(harness)).toEqual(['partial']);
+  });
+
+  it('切换分帧方式时缓冲里的字节按旧规则先交付，不会卡住', async () => {
+    const harness = await opened();
+    harness.session.setFraming({ mode: 'line' });
+    harness.current().emitData(encoder.encode('stuck'));
+    harness.session.setFraming({ mode: 'raw' });
+    expect(rx(harness)).toEqual(['stuck']);
+  });
+});
+
 function codes(notices: SessionNotice[]): string[] {
   return notices.map((n) => n.code);
 }

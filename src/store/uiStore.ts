@@ -1,12 +1,25 @@
 import { create } from 'zustand';
+import { DEFAULT_IDLE_FRAME_MS } from '@/core/framing/frameAssembler';
 import { detectLanguage, LANGUAGES, type Language } from '@/i18n';
-import { pickBoolean, pickEnum, saveSoon } from '@/lib/persist';
+import { pickBoolean, pickEnum, pickInt, saveSoon } from '@/lib/persist';
 import { readStored, readStoredEnum, readStoredJson, writeStored } from '@/lib/storage';
 import type { LogView } from './logStore';
 
 export type Theme = 'dark' | 'light';
 const THEMES: readonly Theme[] = ['dark', 'light'];
 const VIEWS: readonly LogView[] = ['text', 'hex'];
+
+/**
+ * 空闲分帧的取值上限。
+ *
+ * 只用来挡手滑（例如把 10 打成 100000 后界面看起来像卡死了）。1 秒的静默在串口上
+ * 已经是「对方肯定说完了」的量级，再大没有实际意义。
+ */
+export const IDLE_FRAME_MS_MAX = 1000;
+
+export function isValidIdleFrameMs(value: number): boolean {
+  return Number.isInteger(value) && value >= 0 && value <= IDLE_FRAME_MS_MAX;
+}
 
 /** 接收区的显示偏好。语言与主题各自独立成键，沿用既有的存储格式。 */
 const VIEW_PREFS_KEY = 'viewPrefs';
@@ -17,6 +30,10 @@ interface ViewPrefs {
   autoScroll: boolean;
   showTx: boolean;
   onlyMatch: boolean;
+  /** 空闲分帧的静默时长；0 表示不分帧、原样显示。 */
+  idleFrameMs: number;
+  /** 按 `\n` 分帧。与空闲分帧互斥，且只在 TXT 视图下生效。 */
+  lineFraming: boolean;
 }
 
 const DEFAULT_VIEW_PREFS: ViewPrefs = {
@@ -25,6 +42,8 @@ const DEFAULT_VIEW_PREFS: ViewPrefs = {
   autoScroll: true,
   showTx: true,
   onlyMatch: false,
+  idleFrameMs: DEFAULT_IDLE_FRAME_MS,
+  lineFraming: false,
 };
 
 function loadViewPrefs(): ViewPrefs {
@@ -35,6 +54,8 @@ function loadViewPrefs(): ViewPrefs {
     autoScroll: pickBoolean(raw, 'autoScroll', DEFAULT_VIEW_PREFS.autoScroll),
     showTx: pickBoolean(raw, 'showTx', DEFAULT_VIEW_PREFS.showTx),
     onlyMatch: pickBoolean(raw, 'onlyMatch', DEFAULT_VIEW_PREFS.onlyMatch),
+    idleFrameMs: pickInt(raw, 'idleFrameMs', DEFAULT_VIEW_PREFS.idleFrameMs, isValidIdleFrameMs),
+    lineFraming: pickBoolean(raw, 'lineFraming', DEFAULT_VIEW_PREFS.lineFraming),
   };
 }
 
@@ -47,6 +68,8 @@ interface UiState {
   showTx: boolean;
   filter: string;
   onlyMatch: boolean;
+  idleFrameMs: number;
+  lineFraming: boolean;
 
   toggleLanguage: () => void;
   toggleTheme: () => void;
@@ -56,6 +79,8 @@ interface UiState {
   setShowTx: (value: boolean) => void;
   setFilter: (value: string) => void;
   setOnlyMatch: (value: boolean) => void;
+  setIdleFrameMs: (value: number) => void;
+  setLineFraming: (value: boolean) => void;
 }
 
 function initialLanguage(): Language {
@@ -91,11 +116,30 @@ export const useUiStore = create<UiState>()((set) => ({
   setShowTx: (showTx) => set({ showTx }),
   setFilter: (filter) => set({ filter }),
   setOnlyMatch: (onlyMatch) => set({ onlyMatch }),
+
+  setIdleFrameMs: (value) =>
+    set({
+      idleFrameMs: isValidIdleFrameMs(value)
+        ? value
+        : Math.min(IDLE_FRAME_MS_MAX, Math.max(0, Math.round(value) || 0)),
+    }),
+
+  setLineFraming: (lineFraming) => set({ lineFraming }),
 }));
 
-useUiStore.subscribe(({ view, showTimestamp, autoScroll, showTx, onlyMatch }) => {
-  saveSoon(VIEW_PREFS_KEY, { view, showTimestamp, autoScroll, showTx, onlyMatch });
-});
+useUiStore.subscribe(
+  ({ view, showTimestamp, autoScroll, showTx, onlyMatch, idleFrameMs, lineFraming }) => {
+    saveSoon(VIEW_PREFS_KEY, {
+      view,
+      showTimestamp,
+      autoScroll,
+      showTx,
+      onlyMatch,
+      idleFrameMs,
+      lineFraming,
+    });
+  },
+);
 
 function systemTheme(): Theme {
   try {

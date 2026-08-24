@@ -73,6 +73,14 @@ export interface Messages {
   readonly showTx: string;
   readonly filterPlaceholder: string;
   readonly onlyMatch: string;
+
+  // 分帧
+  readonly idleFrame: string;
+  readonly idleFrameUnit: string;
+  readonly idleFrameHint: string;
+  readonly lineFrame: string;
+  readonly lineFrameHint: string;
+  readonly rawFrameHint: string;
   readonly saveLog: string;
   readonly clear: string;
   readonly noData: string;

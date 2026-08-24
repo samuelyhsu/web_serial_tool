@@ -27,6 +27,32 @@
   font-family: var(--font-sans);
 }
 
+/* 把「显示选项」与「分帧」这两组语义不同的控件在视觉上分开 */
+.divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0 2px;
+  background: var(--line);
+}
+
+.idleInput {
+  width: 62px;
+}
+
+/*
+ * 当前分帧方式的说明。工具栏窄的时候第一个被牺牲掉 —— 它只是解释，
+ * 控件本身已经足够表达状态。
+ */
+.frameHint {
+  font-size: 11px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
 .list {
   overflow: auto;
   padding: 8px 0;

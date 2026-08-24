@@ -10,7 +10,7 @@ import {
   type LogRow,
 } from '@/store/logStore';
 import { useConnectionStore } from '@/store/connectionStore';
-import { useUiStore } from '@/store/uiStore';
+import { IDLE_FRAME_MS_MAX, useUiStore } from '@/store/uiStore';
 import { FormatToggle } from '../FormatToggle';
 import { useMessages } from '../useMessages';
 import styles from './LogPane.module.css';
@@ -25,6 +25,7 @@ const ARROWS: Record<LogRow['kind'], string> = { rx: '◀', tx: '▶', sys: '·'
 export function LogPane(): React.JSX.Element {
   const t = useMessages();
   const filterId = useId();
+  const idleId = useId();
   const listRef = useRef<HTMLDivElement>(null);
 
   const version = useLogStore((s) => s.version);
@@ -37,6 +38,8 @@ export function LogPane(): React.JSX.Element {
   const showTx = useUiStore((s) => s.showTx);
   const filter = useUiStore((s) => s.filter);
   const onlyMatch = useUiStore((s) => s.onlyMatch);
+  const idleFrameMs = useUiStore((s) => s.idleFrameMs);
+  const lineFraming = useUiStore((s) => s.lineFraming);
   // 逐个订阅 action：selector 返回新对象会让 zustand 每次快照都不相等，触发无谓重渲染
   const setView = useUiStore((s) => s.setView);
   const setShowTimestamp = useUiStore((s) => s.setShowTimestamp);
@@ -44,6 +47,11 @@ export function LogPane(): React.JSX.Element {
   const setShowTx = useUiStore((s) => s.setShowTx);
   const setFilter = useUiStore((s) => s.setFilter);
   const setOnlyMatch = useUiStore((s) => s.setOnlyMatch);
+  const setIdleFrameMs = useUiStore((s) => s.setIdleFrameMs);
+  const setLineFraming = useUiStore((s) => s.setLineFraming);
+
+  // 换行分帧只在 TXT 视图下生效，与 core 里 resolveFraming 的判断保持一致
+  const lineActive = lineFraming && view === 'text';
 
   const sessionState = useConnectionStore((s) => s.sessionState);
 
@@ -141,6 +149,45 @@ export function LogPane(): React.JSX.Element {
           />
           {t.showTx}
         </label>
+
+        <span className={styles.divider} aria-hidden="true" />
+
+        {/*
+          分帧：空闲毫秒数 + 换行开关。两者互斥，因此开了换行分帧就把毫秒输入禁用掉，
+          而不是让用户面对两个都能点、实际只有一个生效的控件。
+        */}
+        <label className="label" htmlFor={idleId} title={t.idleFrameHint}>
+          {t.idleFrame}
+        </label>
+        <input
+          id={idleId}
+          type="number"
+          className={`field field--sunk field--sm ${styles.idleInput}`}
+          value={idleFrameMs}
+          min={0}
+          max={IDLE_FRAME_MS_MAX}
+          step={5}
+          disabled={lineActive}
+          title={t.idleFrameHint}
+          onChange={(event) => setIdleFrameMs(Number(event.target.value))}
+        />
+        <span className="label">{t.idleFrameUnit}</span>
+
+        {/* 换行分帧只在 TXT 视图下有意义：HEX 视图里按 `\n` 切没有意义 */}
+        {view === 'text' ? (
+          <label className="check" title={t.lineFrameHint}>
+            <input
+              type="checkbox"
+              checked={lineFraming}
+              onChange={(event) => setLineFraming(event.target.checked)}
+            />
+            {t.lineFrame}
+          </label>
+        ) : null}
+
+        <span className={styles.frameHint}>
+          {lineActive ? t.lineFrameHint : idleFrameMs === 0 ? t.rawFrameHint : t.idleFrameHint}
+        </span>
 
         {autoScroll && !atBottom ? <span className="label">{t.scrollPaused}</span> : null}
 

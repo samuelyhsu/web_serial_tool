@@ -40,6 +40,13 @@ export const en: Messages = {
   showTx: 'Show TX',
   filterPlaceholder: 'Filter / highlight…',
   onlyMatch: 'Matches only',
+
+  idleFrame: 'Idle framing',
+  idleFrameUnit: 'ms',
+  idleFrameHint: 'Silence longer than this ends a frame; 0 = raw chunks, no framing',
+  lineFrame: 'Frame on newline',
+  lineFrameHint: 'A newline ends a frame. Mutually exclusive with idle framing; TXT view only',
+  rawFrameHint: 'Raw chunks: one row per driver delivery',
   saveLog: 'Save log',
   clear: 'Clear',
   noData: 'No data',
