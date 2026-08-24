@@ -49,8 +49,8 @@ export const en: Messages = {
   idleFrameUnit: 'ms',
   framingHint: {
     raw: 'No framing: one row per driver delivery',
-    idle: 'Silence longer than the set time ends a frame (typical for Modbus RTU)',
-    line: 'A newline ends a frame (typical for AT / NMEA)',
+    idle: 'Silence longer than the set time ends a frame',
+    line: 'A newline ends a frame',
   },
   saveLog: 'Save log',
   clear: 'Clear',

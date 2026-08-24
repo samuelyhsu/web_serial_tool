@@ -47,8 +47,8 @@ export const zh: Messages = {
   idleFrameUnit: 'ms',
   framingHint: {
     raw: '不做分帧：驱动每交付一次就是一行',
-    idle: '静默超过设定时长即成一帧（Modbus RTU 常用）',
-    line: '遇到换行符即成一帧（AT / NMEA 常用）',
+    idle: '静默超过设定时长即成一帧',
+    line: '遇到换行符即成一帧',
   },
   saveLog: '保存日志',
   clear: '清空',

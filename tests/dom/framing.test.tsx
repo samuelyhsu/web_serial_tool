@@ -153,10 +153,10 @@ describe('接收区分帧控件', () => {
   it('当前模式的说明随选择变化', async () => {
     const user = userEvent.setup();
     render(<LogPane />);
-    expect(screen.getByText(/Modbus RTU/)).toBeInTheDocument();
+    expect(screen.getByText('静默超过设定时长即成一帧')).toBeInTheDocument();
 
     await user.selectOptions(modeSelect(), 'line');
-    expect(screen.getByText(/AT \/ NMEA/)).toBeInTheDocument();
+    expect(screen.getByText('遇到换行符即成一帧')).toBeInTheDocument();
 
     await user.selectOptions(modeSelect(), 'raw');
     expect(screen.getByText(/不做分帧/)).toBeInTheDocument();
