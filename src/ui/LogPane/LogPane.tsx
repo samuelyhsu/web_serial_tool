@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { resolveFraming, type FrameMode } from '@/core/framing/frameAssembler';
 import { downloadText, fileStamp } from '@/lib/download';
 import {
   allEntries,
@@ -10,8 +11,9 @@ import {
   type LogRow,
 } from '@/store/logStore';
 import { useConnectionStore } from '@/store/connectionStore';
-import { IDLE_FRAME_MS_MAX, useUiStore } from '@/store/uiStore';
+import { useUiStore } from '@/store/uiStore';
 import { FormatToggle } from '../FormatToggle';
+import { IdleFrameInput } from './IdleFrameInput';
 import { useMessages } from '../useMessages';
 import styles from './LogPane.module.css';
 
@@ -25,6 +27,7 @@ const ARROWS: Record<LogRow['kind'], string> = { rx: '◀', tx: '▶', sys: '·'
 export function LogPane(): React.JSX.Element {
   const t = useMessages();
   const filterId = useId();
+  const modeId = useId();
   const idleId = useId();
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +42,7 @@ export function LogPane(): React.JSX.Element {
   const filter = useUiStore((s) => s.filter);
   const onlyMatch = useUiStore((s) => s.onlyMatch);
   const idleFrameMs = useUiStore((s) => s.idleFrameMs);
-  const lineFraming = useUiStore((s) => s.lineFraming);
+  const frameMode = useUiStore((s) => s.frameMode);
   // 逐个订阅 action：selector 返回新对象会让 zustand 每次快照都不相等，触发无谓重渲染
   const setView = useUiStore((s) => s.setView);
   const setShowTimestamp = useUiStore((s) => s.setShowTimestamp);
@@ -48,10 +51,15 @@ export function LogPane(): React.JSX.Element {
   const setFilter = useUiStore((s) => s.setFilter);
   const setOnlyMatch = useUiStore((s) => s.setOnlyMatch);
   const setIdleFrameMs = useUiStore((s) => s.setIdleFrameMs);
-  const setLineFraming = useUiStore((s) => s.setLineFraming);
+  const setFrameMode = useUiStore((s) => s.setFrameMode);
 
-  // 换行分帧只在 TXT 视图下生效，与 core 里 resolveFraming 的判断保持一致
-  const lineActive = lineFraming && view === 'text';
+  // 下拉框显示的必须是**实际生效**的模式，而不是存着的偏好：
+  // 在 HEX 视图下选过的「按换行」并不生效，这时候还显示它就又变回了误导。
+  const effectiveMode = resolveFraming({
+    mode: frameMode,
+    idleMs: idleFrameMs,
+    textView: view === 'text',
+  }).mode;
 
   const sessionState = useConnectionStore((s) => s.sessionState);
 
@@ -153,41 +161,39 @@ export function LogPane(): React.JSX.Element {
         <span className={styles.divider} aria-hidden="true" />
 
         {/*
-          分帧：空闲毫秒数 + 换行开关。两者互斥，因此开了换行分帧就把毫秒输入禁用掉，
-          而不是让用户面对两个都能点、实际只有一个生效的控件。
+          分帧三者互斥，所以只给一个下拉框：关闭状态下它本身就写着当前模式，
+          不需要用户去比对两个控件谁在生效。空闲时长只在选了「空闲超时」时才出现 ——
+          同一时刻界面上永远只有一个跟分帧有关的可调项。
         */}
-        <label className="label" htmlFor={idleId} title={t.idleFrameHint}>
-          {t.idleFrame}
+        <label className="label" htmlFor={modeId}>
+          {t.framing}
         </label>
-        <input
-          id={idleId}
-          type="number"
-          className={`field field--sunk field--sm ${styles.idleInput}`}
-          value={idleFrameMs}
-          min={0}
-          max={IDLE_FRAME_MS_MAX}
-          step={5}
-          disabled={lineActive}
-          title={t.idleFrameHint}
-          onChange={(event) => setIdleFrameMs(Number(event.target.value))}
-        />
-        <span className="label">{t.idleFrameUnit}</span>
+        <select
+          id={modeId}
+          className={`field field--sm ${styles.modeSelect}`}
+          value={effectiveMode}
+          title={t.framingHint[effectiveMode]}
+          onChange={(event) => setFrameMode(event.target.value as FrameMode)}
+        >
+          <option value="raw">{t.frameModeRaw}</option>
+          <option value="idle">{t.frameModeIdle}</option>
+          {/* 换行分帧只在 TXT 视图下有意义：HEX 视图里按 `\n` 切没有意义 */}
+          {view === 'text' ? <option value="line">{t.frameModeLine}</option> : null}
+        </select>
 
-        {/* 换行分帧只在 TXT 视图下有意义：HEX 视图里按 `\n` 切没有意义 */}
-        {view === 'text' ? (
-          <label className="check" title={t.lineFrameHint}>
-            <input
-              type="checkbox"
-              checked={lineFraming}
-              onChange={(event) => setLineFraming(event.target.checked)}
+        {effectiveMode === 'idle' ? (
+          <>
+            <IdleFrameInput
+              id={idleId}
+              label={t.idleFrame}
+              value={idleFrameMs}
+              onCommit={setIdleFrameMs}
             />
-            {t.lineFrame}
-          </label>
+            <span className="label">{t.idleFrameUnit}</span>
+          </>
         ) : null}
 
-        <span className={styles.frameHint}>
-          {lineActive ? t.lineFrameHint : idleFrameMs === 0 ? t.rawFrameHint : t.idleFrameHint}
-        </span>
+        <span className={styles.frameHint}>{t.framingHint[effectiveMode]}</span>
 
         {autoScroll && !atBottom ? <span className="label">{t.scrollPaused}</span> : null}
 

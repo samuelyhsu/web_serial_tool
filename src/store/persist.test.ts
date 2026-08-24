@@ -200,21 +200,35 @@ describe('接收区显示偏好持久化', () => {
   it('分帧设置刷新后还在', async () => {
     let app = await reload();
     app.ui.useUiStore.getState().setIdleFrameMs(50);
-    app.ui.useUiStore.getState().setLineFraming(true);
+    app.ui.useUiStore.getState().setFrameMode('line');
     app.persist.flushPersist();
 
     app = await reload();
     expect(app.ui.useUiStore.getState().idleFrameMs).toBe(50);
-    expect(app.ui.useUiStore.getState().lineFraming).toBe(true);
+    expect(app.ui.useUiStore.getState().frameMode).toBe('line');
   });
 
-  it('空闲分帧存 0（原样显示）不会被当成缺省值覆盖掉', async () => {
+  it('空闲时长填 0 后，模式与时长一起被记住', async () => {
     let app = await reload();
     app.ui.useUiStore.getState().setIdleFrameMs(0);
     app.persist.flushPersist();
 
     app = await reload();
     expect(app.ui.useUiStore.getState().idleFrameMs).toBe(0);
+    expect(app.ui.useUiStore.getState().frameMode).toBe('raw');
+  });
+
+  it('认得旧格式：lineFraming=true 迁移成 line 模式', async () => {
+    localStorage.setItem('wst.viewPrefs', JSON.stringify({ idleFrameMs: 20, lineFraming: true }));
+    const app = await reload();
+    expect(app.ui.useUiStore.getState().frameMode).toBe('line');
+    expect(app.ui.useUiStore.getState().idleFrameMs).toBe(20);
+  });
+
+  it('认得旧格式：idleFrameMs=0 迁移成 raw 模式', async () => {
+    localStorage.setItem('wst.viewPrefs', JSON.stringify({ idleFrameMs: 0, lineFraming: false }));
+    const app = await reload();
+    expect(app.ui.useUiStore.getState().frameMode).toBe('raw');
   });
 
   it('存量里越界的空闲分帧退回默认 10ms', async () => {

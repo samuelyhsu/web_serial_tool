@@ -208,33 +208,33 @@ describe('flush 与模式切换', () => {
 });
 
 describe('resolveFraming', () => {
-  it('空闲毫秒为 0 表示原样显示', () => {
-    expect(resolveFraming({ idleMs: 0, lineFraming: false, textView: true })).toMatchObject({
+  it('选什么就是什么', () => {
+    expect(resolveFraming({ mode: 'raw', idleMs: 10, textView: true })).toMatchObject({
       mode: 'raw',
     });
-  });
-
-  it('空闲毫秒大于 0 走空闲分帧', () => {
-    expect(resolveFraming({ idleMs: 10, lineFraming: false, textView: true })).toEqual({
+    expect(resolveFraming({ mode: 'idle', idleMs: 10, textView: true })).toEqual({
       mode: 'idle',
       idleMs: 10,
     });
-  });
-
-  it('换行分帧优先于空闲分帧 —— 两者互斥', () => {
-    expect(resolveFraming({ idleMs: 10, lineFraming: true, textView: true })).toMatchObject({
+    expect(resolveFraming({ mode: 'line', idleMs: 10, textView: true })).toMatchObject({
       mode: 'line',
     });
   });
 
+  it('空闲时长为 0 等同于不分帧', () => {
+    expect(resolveFraming({ mode: 'idle', idleMs: 0, textView: true })).toMatchObject({
+      mode: 'raw',
+    });
+  });
+
   it('HEX 视图下换行分帧不生效，回落到空闲分帧', () => {
-    expect(resolveFraming({ idleMs: 10, lineFraming: true, textView: false })).toMatchObject({
+    expect(resolveFraming({ mode: 'line', idleMs: 10, textView: false })).toMatchObject({
       mode: 'idle',
     });
   });
 
-  it('HEX 视图 + 换行分帧 + 空闲为 0：回落到原样', () => {
-    expect(resolveFraming({ idleMs: 0, lineFraming: true, textView: false })).toMatchObject({
+  it('HEX 视图 + 换行分帧 + 空闲为 0：一路回落到原样', () => {
+    expect(resolveFraming({ mode: 'line', idleMs: 0, textView: false })).toMatchObject({
       mode: 'raw',
     });
   });

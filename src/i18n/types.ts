@@ -75,12 +75,13 @@ export interface Messages {
   readonly onlyMatch: string;
 
   // 分帧
+  readonly framing: string;
+  readonly frameModeRaw: string;
+  readonly frameModeIdle: string;
+  readonly frameModeLine: string;
   readonly idleFrame: string;
   readonly idleFrameUnit: string;
-  readonly idleFrameHint: string;
-  readonly lineFrame: string;
-  readonly lineFrameHint: string;
-  readonly rawFrameHint: string;
+  readonly framingHint: Readonly<Record<'raw' | 'idle' | 'line', string>>;
   readonly saveLog: string;
   readonly clear: string;
   readonly noData: string;

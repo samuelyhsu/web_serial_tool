@@ -242,9 +242,9 @@ session.setReconnectSettings({ enabled: useConnectionStore.getState().autoReconn
  * 当前是不是 TXT 视图，视图本身也在那边。会话这侧只需订阅结果。
  */
 function syncFraming(): void {
-  const { idleFrameMs, lineFraming, view } = useUiStore.getState();
+  const { frameMode, idleFrameMs, view } = useUiStore.getState();
   session.setFraming(
-    resolveFraming({ idleMs: idleFrameMs, lineFraming, textView: view === 'text' }),
+    resolveFraming({ mode: frameMode, idleMs: idleFrameMs, textView: view === 'text' }),
   );
 }
 

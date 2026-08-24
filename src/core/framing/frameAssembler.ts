@@ -183,19 +183,20 @@ export class FrameAssembler {
 }
 
 /**
- * 由界面上的两个控件推出分帧配置。
+ * 把界面上选的模式落成实际生效的分帧配置。
  *
- * 界面暴露的是「空闲毫秒数」和「按换行分帧」两个控件，规则：
- *  - 换行分帧只在 TXT 视图下有意义（HEX 视图里按 `\n` 切没有意义），因此它开着但
- *    视图是 HEX 时，回落到空闲/原样；
- *  - 空闲毫秒数为 0 表示不做分帧处理，原样显示。
+ * 两条回落规则：
+ *  - 换行分帧只在 TXT 视图下有意义（HEX 视图里按 `\n` 切没有意义），选了但视图是 HEX
+ *    时回落到空闲；
+ *  - 空闲时长为 0 等同于不分帧。界面会把这种情况同步成 `raw`，让下拉框显示的和
+ *    实际生效的永远一致，这里只是兜底。
  */
 export function resolveFraming(options: {
+  mode: FrameMode;
   idleMs: number;
-  lineFraming: boolean;
   textView: boolean;
 }): Pick<FramingConfig, 'mode' | 'idleMs'> {
-  if (options.lineFraming && options.textView) return { mode: 'line', idleMs: options.idleMs };
-  if (options.idleMs > 0) return { mode: 'idle', idleMs: options.idleMs };
-  return { mode: 'raw', idleMs: options.idleMs };
+  const mode = options.mode === 'line' && !options.textView ? 'idle' : options.mode;
+  if (mode === 'idle' && options.idleMs <= 0) return { mode: 'raw', idleMs: options.idleMs };
+  return { mode, idleMs: options.idleMs };
 }

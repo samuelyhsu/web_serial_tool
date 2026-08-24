@@ -35,6 +35,11 @@
   background: var(--line);
 }
 
+.modeSelect {
+  /* 够放下最长的一项（"Idle timeout"），不必让下拉宽度随选中项跳动 */
+  width: 104px;
+}
+
 .idleInput {
   width: 62px;
 }

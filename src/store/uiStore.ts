@@ -1,13 +1,15 @@
 import { create } from 'zustand';
-import { DEFAULT_IDLE_FRAME_MS } from '@/core/framing/frameAssembler';
+import { DEFAULT_IDLE_FRAME_MS, type FrameMode } from '@/core/framing/frameAssembler';
 import { detectLanguage, LANGUAGES, type Language } from '@/i18n';
-import { pickBoolean, pickEnum, pickInt, saveSoon } from '@/lib/persist';
+import { isRecord, pickBoolean, pickEnum, pickInt, saveSoon } from '@/lib/persist';
 import { readStored, readStoredEnum, readStoredJson, writeStored } from '@/lib/storage';
 import type { LogView } from './logStore';
 
 export type Theme = 'dark' | 'light';
 const THEMES: readonly Theme[] = ['dark', 'light'];
 const VIEWS: readonly LogView[] = ['text', 'hex'];
+/** 下拉框里的顺序：从「完全不处理」到「处理得最多」。 */
+export const FRAME_MODES: readonly FrameMode[] = ['raw', 'idle', 'line'];
 
 /**
  * 空闲分帧的取值上限。
@@ -30,10 +32,10 @@ interface ViewPrefs {
   autoScroll: boolean;
   showTx: boolean;
   onlyMatch: boolean;
-  /** 空闲分帧的静默时长；0 表示不分帧、原样显示。 */
+  /** 当前分帧方式。三者互斥，用一个枚举表达，界面上就只有一个控件在管它。 */
+  frameMode: FrameMode;
+  /** 空闲分帧的静默时长，仅 frameMode 为 idle 时有意义。 */
   idleFrameMs: number;
-  /** 按 `\n` 分帧。与空闲分帧互斥，且只在 TXT 视图下生效。 */
-  lineFraming: boolean;
 }
 
 const DEFAULT_VIEW_PREFS: ViewPrefs = {
@@ -42,21 +44,42 @@ const DEFAULT_VIEW_PREFS: ViewPrefs = {
   autoScroll: true,
   showTx: true,
   onlyMatch: false,
+  frameMode: 'idle',
   idleFrameMs: DEFAULT_IDLE_FRAME_MS,
-  lineFraming: false,
 };
 
 function loadViewPrefs(): ViewPrefs {
   const raw = readStoredJson<unknown>(VIEW_PREFS_KEY, null);
+  const idleFrameMs = pickInt(
+    raw,
+    'idleFrameMs',
+    DEFAULT_VIEW_PREFS.idleFrameMs,
+    isValidIdleFrameMs,
+  );
   return {
     view: pickEnum(raw, 'view', VIEWS, DEFAULT_VIEW_PREFS.view),
     showTimestamp: pickBoolean(raw, 'showTimestamp', DEFAULT_VIEW_PREFS.showTimestamp),
     autoScroll: pickBoolean(raw, 'autoScroll', DEFAULT_VIEW_PREFS.autoScroll),
     showTx: pickBoolean(raw, 'showTx', DEFAULT_VIEW_PREFS.showTx),
     onlyMatch: pickBoolean(raw, 'onlyMatch', DEFAULT_VIEW_PREFS.onlyMatch),
-    idleFrameMs: pickInt(raw, 'idleFrameMs', DEFAULT_VIEW_PREFS.idleFrameMs, isValidIdleFrameMs),
-    lineFraming: pickBoolean(raw, 'lineFraming', DEFAULT_VIEW_PREFS.lineFraming),
+    frameMode: loadFrameMode(raw, idleFrameMs),
+    idleFrameMs,
   };
+}
+
+/**
+ * 读取分帧方式。
+ *
+ * 分帧最初是用「空闲毫秒数 + 按换行的布尔开关」两个控件表达的，0 表示原样。
+ * 那种排布看不出当前到底哪个在生效，改成了单选的下拉框，模式也随之变成一个显式枚举。
+ * 这里认存量里的旧字段，免得升级后大家的设置被悄悄重置。
+ */
+function loadFrameMode(raw: unknown, idleFrameMs: number): FrameMode {
+  if (isRecord(raw) && raw.frameMode === undefined) {
+    if (raw.lineFraming === true) return 'line';
+    if (typeof raw.idleFrameMs === 'number') return idleFrameMs > 0 ? 'idle' : 'raw';
+  }
+  return pickEnum(raw, 'frameMode', FRAME_MODES, DEFAULT_VIEW_PREFS.frameMode);
 }
 
 interface UiState {
@@ -68,8 +91,8 @@ interface UiState {
   showTx: boolean;
   filter: string;
   onlyMatch: boolean;
+  frameMode: FrameMode;
   idleFrameMs: number;
-  lineFraming: boolean;
 
   toggleLanguage: () => void;
   toggleTheme: () => void;
@@ -79,8 +102,8 @@ interface UiState {
   setShowTx: (value: boolean) => void;
   setFilter: (value: string) => void;
   setOnlyMatch: (value: boolean) => void;
+  setFrameMode: (mode: FrameMode) => void;
   setIdleFrameMs: (value: number) => void;
-  setLineFraming: (value: boolean) => void;
 }
 
 function initialLanguage(): Language {
@@ -117,26 +140,28 @@ export const useUiStore = create<UiState>()((set) => ({
   setFilter: (filter) => set({ filter }),
   setOnlyMatch: (onlyMatch) => set({ onlyMatch }),
 
-  setIdleFrameMs: (value) =>
-    set({
-      idleFrameMs: isValidIdleFrameMs(value)
-        ? value
-        : Math.min(IDLE_FRAME_MS_MAX, Math.max(0, Math.round(value) || 0)),
-    }),
+  setFrameMode: (frameMode) => set({ frameMode }),
 
-  setLineFraming: (lineFraming) => set({ lineFraming }),
+  setIdleFrameMs: (value) => {
+    const idleFrameMs = isValidIdleFrameMs(value)
+      ? value
+      : Math.min(IDLE_FRAME_MS_MAX, Math.max(0, Math.round(value) || 0));
+    // 填 0 就是「不分帧」。同步把模式切成原样，下拉框显示的和实际生效的才不会打架 ——
+    // 「看不出当前哪个在生效」正是这套控件上一版的毛病。
+    set(idleFrameMs === 0 ? { idleFrameMs, frameMode: 'raw' } : { idleFrameMs });
+  },
 }));
 
 useUiStore.subscribe(
-  ({ view, showTimestamp, autoScroll, showTx, onlyMatch, idleFrameMs, lineFraming }) => {
+  ({ view, showTimestamp, autoScroll, showTx, onlyMatch, frameMode, idleFrameMs }) => {
     saveSoon(VIEW_PREFS_KEY, {
       view,
       showTimestamp,
       autoScroll,
       showTx,
       onlyMatch,
+      frameMode,
       idleFrameMs,
-      lineFraming,
     });
   },
 );
