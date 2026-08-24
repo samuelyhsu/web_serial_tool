@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { HexParseError } from '@/core/codec/hex';
 import { BUILTIN_PRESET_KEYS, type BuiltinPresetKey, type Messages } from '@/i18n/types';
+import { saveSoon } from '@/lib/persist';
+import { readStoredJson } from '@/lib/storage';
 import { useConnectionStore } from './connectionStore';
 import { useLogStore } from './logStore';
 import { buildFrame, convertPayload, type PayloadMode } from './payload';
@@ -88,6 +90,45 @@ function blankPreset(index: number): Preset {
   };
 }
 
+const PRESETS_KEY = 'presets';
+/** 顺序循环的间隔单独存：它不是预设内容，不该混进导出文件的格式里。 */
+const SEQUENCE_GAP_KEY = 'sequenceGapMs';
+const DEFAULT_SEQUENCE_GAP_MS = 300;
+
+function loadSequenceGap(): number {
+  const raw = readStoredJson<unknown>(SEQUENCE_GAP_KEY, null);
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 10
+    ? raw
+    : DEFAULT_SEQUENCE_GAP_MS;
+}
+
+/** 导出与本地持久化共用同一套字段，因此两者的还原路径也完全一致。 */
+function serializePresets(presets: readonly Preset[]): unknown {
+  return {
+    version: PRESET_EXPORT_VERSION,
+    presets: presets.map((preset) => ({
+      name: preset.name,
+      labelKey: preset.labelKey,
+      data: preset.data,
+      mode: preset.mode,
+      intervalMs: preset.intervalMs,
+      inSequence: preset.inSequence,
+    })),
+  };
+}
+
+/**
+ * 从 localStorage 还原预设。
+ *
+ * 直接复用导入用的校验器：存量数据和用户手里的 JSON 文件面对的风险是一样的
+ * （旧版本字段、被手改、被别的标签页写坏），没有理由维护两套校验。
+ * 校验不通过就整体退回内置示例，而不是让半截数据进到界面里。
+ */
+function loadPresets(): Preset[] {
+  const result = validatePresetPayload(readStoredJson<unknown>(PRESETS_KEY, null));
+  return result.ok ? result.presets : defaultPresets();
+}
+
 function defaultPresets(): Preset[] {
   // 前 10 条是内置示例，其余补空行凑满固定总数
   const presets: Preset[] = BUILTINS.map((preset) => ({ ...preset, id: nextId(), name: '' }));
@@ -108,6 +149,8 @@ interface PresetState {
   presets: readonly Preset[];
   /** 当前页，从 0 开始。 */
   page: number;
+  /** 顺序循环两条之间的间隔。 */
+  sequenceGapMs: number;
   /** 每条预设当前的问题（HEX 解析失败 / 模式切换被拒），按 id 索引。 */
   issues: Readonly<Record<string, PresetIssue>>;
 
@@ -119,7 +162,8 @@ interface PresetState {
 
   sendOnce: (id: string) => Promise<void>;
   toggleLoop: (id: string) => void;
-  toggleSequence: (gapMs: number) => void;
+  setSequenceGapMs: (gapMs: number) => void;
+  toggleSequence: () => void;
 
   setPage: (page: number) => void;
   replaceAll: (presets: Preset[]) => void;
@@ -159,8 +203,10 @@ export const usePresetStore = create<PresetState>()((set, get) => {
     });
 
   return {
-    presets: defaultPresets(),
+    presets: loadPresets(),
+    // page 不持久化：翻页是当下的浏览位置，不是配置
     page: 0,
+    sequenceGapMs: loadSequenceGap(),
     issues: {},
 
     // 用户一改名就切断与内置翻译的关联，语言切换不会再覆盖他的命名
@@ -223,7 +269,9 @@ export const usePresetStore = create<PresetState>()((set, get) => {
       });
     },
 
-    toggleSequence: (gapMs) => {
+    setSequenceGapMs: (gapMs) => set({ sequenceGapMs: Math.max(10, Math.round(gapMs) || 10) }),
+
+    toggleSequence: () => {
       const tasks = useTasksStore.getState();
       if (tasks.running.includes(SEQUENCE_TASK)) {
         tasks.stop(SEQUENCE_TASK);
@@ -237,7 +285,7 @@ export const usePresetStore = create<PresetState>()((set, get) => {
 
       sequenceCursor = 0;
       tasks.start(SEQUENCE_TASK, {
-        intervalMs: Math.max(10, gapMs),
+        intervalMs: get().sequenceGapMs,
         run: async () => {
           // 每次都取最新的勾选列表，循环期间增删预设不会错位
           const queue = get().presets.filter((preset) => preset.inSequence);
@@ -256,22 +304,7 @@ export const usePresetStore = create<PresetState>()((set, get) => {
       set({ presets, issues: {} });
     },
 
-    exportPayload: () =>
-      JSON.stringify(
-        {
-          version: PRESET_EXPORT_VERSION,
-          presets: get().presets.map((preset) => ({
-            name: preset.name,
-            labelKey: preset.labelKey,
-            data: preset.data,
-            mode: preset.mode,
-            intervalMs: preset.intervalMs,
-            inSequence: preset.inSequence,
-          })),
-        },
-        null,
-        2,
-      ),
+    exportPayload: () => JSON.stringify(serializePresets(get().presets), null, 2),
   };
 });
 
@@ -292,7 +325,11 @@ export function parseImportedPresets(raw: string): ImportResult {
   } catch {
     return { ok: false, reason: 'JSON syntax error' };
   }
+  return validatePresetPayload(parsed);
+}
 
+/** 校验已解析出来的结构。导入文件与读取 localStorage 共用。 */
+export function validatePresetPayload(parsed: unknown): ImportResult {
   const items = Array.isArray(parsed)
     ? parsed // 兼容原型导出的裸数组
     : isRecord(parsed) && Array.isArray(parsed.presets)
@@ -352,3 +389,8 @@ function toBuiltinKey(value: unknown): BuiltinPresetKey | null {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
+
+usePresetStore.subscribe(({ presets, sequenceGapMs }) => {
+  saveSoon(PRESETS_KEY, serializePresets(presets));
+  saveSoon(SEQUENCE_GAP_KEY, sequenceGapMs);
+});

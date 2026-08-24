@@ -1,10 +1,42 @@
 import { create } from 'zustand';
-import type { ChecksumId } from '@/core/checksum';
+import { findChecksum, type ChecksumId } from '@/core/checksum';
 import type { HexParseError } from '@/core/codec/hex';
+import { pickEnum, pickInt, pickString, saveSoon } from '@/lib/persist';
+import { readStoredJson } from '@/lib/storage';
 import { useConnectionStore } from './connectionStore';
 import { useLogStore } from './logStore';
-import { buildFrame, convertPayload, type EolKey, type PayloadMode } from './payload';
+import { buildFrame, convertPayload, EOL_KEYS, type EolKey, type PayloadMode } from './payload';
 import { SINGLE_TASK, useTasksStore } from './tasksStore';
+
+const SEND_KEY = 'sendPane';
+const MODES: readonly PayloadMode[] = ['text', 'hex'];
+
+const DEFAULTS = {
+  payload: 'AT+VER?',
+  mode: 'text' as PayloadMode,
+  // 默认都不追加任何东西：不该在用户没要求时擅自改动报文
+  eol: 'none' as EolKey,
+  checksum: 'none' as ChecksumId,
+  intervalMs: 1000,
+};
+
+/**
+ * 还原发送区。校验和的取值来自算法目录而不是固定枚举：
+ * 目录里增删条目时，存量里那个已不存在的 id 会自动退回 'none'。
+ */
+function loadSendState(): typeof DEFAULTS {
+  const raw = readStoredJson<unknown>(SEND_KEY, null);
+  const checksum = pickString(raw, 'checksum', DEFAULTS.checksum);
+  return {
+    payload: pickString(raw, 'payload', DEFAULTS.payload),
+    mode: pickEnum(raw, 'mode', MODES, DEFAULTS.mode),
+    eol: pickEnum(raw, 'eol', EOL_KEYS, DEFAULTS.eol),
+    checksum: checksum === 'none' || findChecksum(checksum) ? checksum : DEFAULTS.checksum,
+    intervalMs: pickInt(raw, 'intervalMs', DEFAULTS.intervalMs, (v) => v >= 10),
+  };
+}
+
+const restored = loadSendState();
 
 /** 模式切换被拒绝时的原因，由 UI 翻译成提示文案。 */
 export type ModeSwitchIssue = { kind: 'lossy' } | { kind: 'parse'; error: HexParseError };
@@ -38,13 +70,9 @@ function validate(payload: string, mode: PayloadMode): HexParseError | null {
 }
 
 export const useSendStore = create<SendState>()((set, get) => ({
-  payload: 'AT+VER?',
-  mode: 'text',
-  // 默认都不追加任何东西：不该在用户没要求时擅自改动报文
-  eol: 'none',
-  checksum: 'none',
-  intervalMs: 1000,
-  parseError: null,
+  ...restored,
+  // 存量内容可能在 HEX 模式下解析不通过，进来就要把错误标出来
+  parseError: validate(restored.payload, restored.mode),
   modeIssue: null,
 
   setPayload: (payload) =>
@@ -116,3 +144,7 @@ export const useSendStore = create<SendState>()((set, get) => ({
     });
   },
 }));
+
+useSendStore.subscribe(({ payload, mode, eol, checksum, intervalMs }) => {
+  saveSoon(SEND_KEY, { payload, mode, eol, checksum, intervalMs });
+});

@@ -19,7 +19,6 @@ export function PresetPane(): React.JSX.Element {
   const t = useMessages();
   const gapId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [gapMs, setGapMs] = useState(300);
 
   const presets = usePresetStore((s) => s.presets);
   const page = usePresetStore((s) => s.page);
@@ -28,6 +27,9 @@ export function PresetPane(): React.JSX.Element {
   const replaceAll = usePresetStore((s) => s.replaceAll);
   const exportPayload = usePresetStore((s) => s.exportPayload);
   const toggleSequence = usePresetStore((s) => s.toggleSequence);
+  // 间隔归 store 管，才能跟着预设一起持久化
+  const gapMs = usePresetStore((s) => s.sequenceGapMs);
+  const setGapMs = usePresetStore((s) => s.setSequenceGapMs);
 
   const running = useTasksStore((s) => s.running);
   const stopAll = useTasksStore((s) => s.stopAll);
@@ -152,7 +154,7 @@ export function PresetPane(): React.JSX.Element {
               value={gapMs}
               min={10}
               step={10}
-              onChange={(event) => setGapMs(Math.max(10, Number(event.target.value) || 10))}
+              onChange={(event) => setGapMs(Number(event.target.value))}
             />
             <span className="label">ms</span>
           </div>
@@ -164,7 +166,7 @@ export function PresetPane(): React.JSX.Element {
             className={`btn ${styles.seqBtn} ${sequenceRunning ? 'btn--on' : ''}`}
             aria-pressed={sequenceRunning}
             disabled={!sequenceRunning && (!isOpen || inSequenceCount === 0)}
-            onClick={() => toggleSequence(gapMs)}
+            onClick={() => toggleSequence()}
           >
             {sequenceRunning ? t.stopSequence : t.startSequence}
           </button>

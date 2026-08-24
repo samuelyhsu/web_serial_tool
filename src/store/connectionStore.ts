@@ -4,7 +4,8 @@ import { TransportError } from '@/core/transport/errors';
 import { describePorts, portKey, type PortDescriptor } from '@/core/transport/portRegistry';
 import type { ConnectionOptions, Parity } from '@/core/transport/types';
 import { isWebSerialSupported, WebSerialTransport } from '@/core/transport/webSerialTransport';
-import { readStored, writeStored } from '@/lib/storage';
+import { pickBoolean, pickEnum, pickInt, saveSoon } from '@/lib/persist';
+import { readStored, readStoredJson, writeStored } from '@/lib/storage';
 import { useLogStore } from './logStore';
 import { portDisplayLabel, usePortAliasStore } from './portAliasStore';
 import { useTasksStore } from './tasksStore';
@@ -47,6 +48,32 @@ export const DEFAULT_OPTIONS: ConnectionOptions = {
 };
 
 const supported = isWebSerialSupported();
+
+/** 串口参数与自动重连开关。端口选择另存一键，因为它的生命周期不同。 */
+const SETTINGS_KEY = 'connectionSettings';
+const PARITIES: readonly Parity[] = ['none', 'even', 'odd'];
+const FLOW_CONTROLS: readonly ConnectionOptions['flowControl'][] = ['none', 'hardware'];
+
+/**
+ * 从 localStorage 还原串口参数。
+ *
+ * 逐字段校验：波特率走 isValidBaudRate（自定义值本来就允许，只挡明显手滑），
+ * 其余字段限定在规范允许的取值里。任何一项不认识就退回默认，不让存量数据
+ * 变成一个 open() 必然失败的配置。
+ */
+function loadOptions(raw: unknown): ConnectionOptions {
+  return {
+    baudRate: pickInt(raw, 'baudRate', DEFAULT_OPTIONS.baudRate, isValidBaudRate),
+    dataBits: pickInt(raw, 'dataBits', DEFAULT_OPTIONS.dataBits, (v) => v === 7 || v === 8) as
+      7 | 8,
+    stopBits: pickInt(raw, 'stopBits', DEFAULT_OPTIONS.stopBits, (v) => v === 1 || v === 2) as
+      1 | 2,
+    parity: pickEnum(raw, 'parity', PARITIES, DEFAULT_OPTIONS.parity),
+    flowControl: pickEnum(raw, 'flowControl', FLOW_CONTROLS, DEFAULT_OPTIONS.flowControl),
+  };
+}
+
+const storedSettings = readStoredJson<unknown>(SETTINGS_KEY, null);
 
 /** 记住用户选中的那台设备，刷新页面后自动恢复。 */
 const SELECTED_PORT_KEY = 'selectedPort';
@@ -114,8 +141,8 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
   supported,
   ports: [],
   selectedPortKey: null,
-  options: DEFAULT_OPTIONS,
-  autoReconnect: true,
+  options: loadOptions(storedSettings),
+  autoReconnect: pickBoolean(storedSettings, 'autoReconnect', true),
   sessionState: 'closed',
   openedAt: 0,
 
@@ -203,6 +230,13 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
  * 订阅设备插拔事件，保持端口列表新鲜。
  * 返回取消订阅函数，由 App 在卸载时调用。
  */
+useConnectionStore.subscribe(({ options, autoReconnect }) => {
+  saveSoon(SETTINGS_KEY, { ...options, autoReconnect });
+});
+
+/** 还原出来的自动重连开关要同步给会话，否则存的是关、实际仍会重连。 */
+session.setReconnectSettings({ enabled: useConnectionStore.getState().autoReconnect });
+
 export function watchPortChanges(): () => void {
   if (!supported) return () => undefined;
 
