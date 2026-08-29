@@ -5,11 +5,20 @@ import { TransportError } from '../transport/errors';
 import type { SessionNotice } from './notices';
 import { SerialSession, type Direction } from './serialSession';
 
+/**
+ * 端口句柄在 core 眼里是不透明的：它只负责原样交还给 createTransport。
+ * 因此这里用一个空壳对象，而不是借用浏览器的 SerialPort —— 那正是 core 不该认识的东西。
+ */
+interface FakePort {
+  readonly id: string;
+}
+const FAKE_PORT: FakePort = { id: 'fake-port' };
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 interface Harness {
-  session: SerialSession;
+  session: SerialSession<FakePort>;
   transports: FakeTransport[];
   current: () => FakeTransport;
   frames: { direction: Direction; text: string }[];
@@ -29,13 +38,13 @@ function makeHarness(
   const frames: { direction: Direction; text: string }[] = [];
   const notices: SessionNotice[] = [];
   const states: string[] = [];
-  const fakePort = {} as SerialPort;
+  const fakePort = FAKE_PORT;
 
   const resolvePort = vi.fn(() =>
     Promise.resolve(options.portAvailable === false ? undefined : fakePort),
   );
 
-  const session = new SerialSession({
+  const session = new SerialSession<FakePort>({
     createTransport: () => {
       const transport = new FakeTransport();
       options.onCreateTransport?.(transport, transports.length);
@@ -73,7 +82,7 @@ describe('关闭与在途的打开竞争', () => {
         if (index === 1) transport.blockOpen();
       },
     });
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
 
     harness.current().emitUnplug(); // 设备被拔出 → 进入退避重连
     expect(harness.session.state).toBe('reconnecting');
@@ -96,7 +105,7 @@ describe('关闭与在途的打开竞争', () => {
       onCreateTransport: (transport) => transport.blockOpen(),
     });
 
-    const opening = harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    const opening = harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     const closing = harness.session.close();
     setTimeout(() => harness.transports[0]!.releaseOpen(), 0);
     await Promise.allSettled([opening, closing]);
@@ -116,7 +125,7 @@ describe('接收分帧', () => {
 
   async function opened(): Promise<Harness> {
     const harness = makeHarness();
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     return harness;
   }
 
@@ -214,7 +223,7 @@ describe('SerialSession', () => {
   });
 
   it('打开端口后进入 open 状态并发出 port-opened 通知', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
 
     expect(harness.session.state).toBe('open');
     expect(harness.states).toEqual(['opening', 'open']);
@@ -225,7 +234,7 @@ describe('SerialSession', () => {
   it('打开失败时回到 closed 并发出 open-failed', async () => {
     const session = harness.session;
     // 让下一个 transport 的 open 失败
-    const failing = new SerialSession({
+    const failing = new SerialSession<FakePort>({
       createTransport: () => {
         const t = new FakeTransport();
         t.failNextOpen = new Error('Access denied');
@@ -237,9 +246,7 @@ describe('SerialSession', () => {
     const notices: SessionNotice[] = [];
     failing.setHandlers({ onNotice: (n) => notices.push(n) });
 
-    await expect(failing.open({} as SerialPort, 'port-1', TEST_OPTIONS)).rejects.toThrow(
-      'Access denied',
-    );
+    await expect(failing.open(FAKE_PORT, 'port-1', TEST_OPTIONS)).rejects.toThrow('Access denied');
     expect(failing.state).toBe('closed');
     expect(notices).toContainEqual({ code: 'open-failed', message: 'Access denied' });
     expect(session.state).toBe('closed');
@@ -250,14 +257,14 @@ describe('SerialSession', () => {
    * 一次交付里含多个换行，仍然只算一帧。
    */
   it('驱动每交付一次数据就是一帧，不做任何切分', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().emitData(encoder.encode('+VER: SA-2100\r\nOK\r\n'));
 
     expect(harness.frames).toEqual([{ direction: 'rx', text: '+VER: SA-2100\r\nOK\r\n' }]);
   });
 
   it('分两次交付就是两帧，不做拼接', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().emitData(encoder.encode('+VER: SA-'));
     harness.current().emitData(encoder.encode('2100\r\n'));
 
@@ -268,7 +275,7 @@ describe('SerialSession', () => {
   });
 
   it('发送成功时记一条 tx 帧', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     await harness.session.send(encoder.encode('AT+VER?\r\n'));
 
     expect(harness.frames).toEqual([{ direction: 'tx', text: 'AT+VER?\r\n' }]);
@@ -281,14 +288,14 @@ describe('SerialSession', () => {
   });
 
   it('空数据不发送', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     await harness.session.send(new Uint8Array(0));
     expect(harness.current().written).toHaveLength(0);
   });
 
   /** 缺陷 D10：背压不再是静默积压，而是一条用户可见的通知。 */
   it('写队列满时发出背压通知而不是抛异常', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().rejectWritesWith(new TransportError('backpressure', 'full'));
 
     await harness.session.send(encoder.encode('AT'));
@@ -296,7 +303,7 @@ describe('SerialSession', () => {
   });
 
   it('写入失败（非背压）发出 write-error', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().rejectWritesWith(new TransportError('write', 'device gone'));
 
     await harness.session.send(encoder.encode('AT'));
@@ -304,7 +311,7 @@ describe('SerialSession', () => {
   });
 
   it('主动关闭时不触发重连', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     await harness.session.close();
 
     expect(harness.session.state).toBe('closed');
@@ -317,7 +324,7 @@ describe('SerialSession', () => {
 
   /** 原样分块没有缓冲，收到即上报，因此关闭时不存在「残留半帧」这回事。 */
   it('数据收到即上报，关闭时没有滞留内容', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().emitData(encoder.encode('no newline here'));
     expect(harness.frames).toEqual([{ direction: 'rx', text: 'no newline here' }]);
 
@@ -327,7 +334,7 @@ describe('SerialSession', () => {
 
   /** 这是原型最难在真机上复现、也最容易写错的一条链路。 */
   it('设备掉线后按退避重连，成功后回到 open', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().emitUnplug();
 
     expect(harness.session.state).toBe('reconnecting');
@@ -340,7 +347,7 @@ describe('SerialSession', () => {
   });
 
   it('重连时按稳定 key 重新解析端口，而不是复用可能失效的旧对象', async () => {
-    await harness.session.open({} as SerialPort, 'port-7', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-7', TEST_OPTIONS);
     harness.current().emitUnplug();
     await vi.advanceTimersByTimeAsync(500);
 
@@ -356,7 +363,7 @@ describe('SerialSession', () => {
       maxDelayMs: 1000,
       jitterRatio: 0,
     });
-    await gone.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await gone.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     gone.current().emitUnplug();
 
     await vi.advanceTimersByTimeAsync(100 + 200 + 400);
@@ -368,7 +375,7 @@ describe('SerialSession', () => {
 
   it('关闭自动重连后掉线直接进入 closed', async () => {
     harness.session.setReconnectSettings({ enabled: false });
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().emitUnplug();
 
     expect(harness.session.state).toBe('closed');
@@ -379,7 +386,7 @@ describe('SerialSession', () => {
   });
 
   it('重连过程中主动关闭会取消重连', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().emitUnplug();
     expect(harness.session.state).toBe('reconnecting');
 
@@ -391,15 +398,15 @@ describe('SerialSession', () => {
   });
 
   it('读取错误经通知上报，不再像原型那样被空 catch 吞掉', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().emitError(new TransportError('read', 'Framing error'));
 
     expect(harness.notices).toContainEqual({ code: 'read-error', message: 'Framing error' });
   });
 
   it('重复 open 会抛错而不是打开第二个端口', async () => {
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
-    await expect(harness.session.open({} as SerialPort, 'port-2', TEST_OPTIONS)).rejects.toThrow(
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
+    await expect(harness.session.open(FAKE_PORT, 'port-2', TEST_OPTIONS)).rejects.toThrow(
       TransportError,
     );
     expect(harness.transports).toHaveLength(1);
@@ -416,7 +423,7 @@ describe('SerialSession', () => {
     const scheduler = new TaskScheduler();
     scheduler.start('single', { intervalMs: 50, run: () => undefined });
 
-    await harness.session.open({} as SerialPort, 'port-1', TEST_OPTIONS);
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
     harness.current().emitUnplug();
     expect(harness.session.state).toBe('reconnecting');
 

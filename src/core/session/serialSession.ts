@@ -32,14 +32,19 @@ export const DEFAULT_RECONNECT: ReconnectSettings = {
   jitterRatio: 0.2,
 };
 
-export interface SerialSessionDeps {
-  /** 注入传输层工厂：生产环境是 WebSerialTransport，测试用 FakeTransport。 */
-  createTransport: (port: SerialPort) => Transport;
+/**
+ * `TPort` 是端口句柄的类型，core 对它一无所知 —— 浏览器端是 `SerialPort` 对象，
+ * 桌面端是设备路径字符串，测试里是个空壳。core 只负责把它原样交还给 createTransport，
+ * 因此这一层不必、也不应该认识任何一种运行环境的端口类型。
+ */
+export interface SerialSessionDeps<TPort = unknown> {
+  /** 注入传输层工厂：浏览器是 WebSerialTransport，桌面是 NodeSerialTransport，测试用 FakeTransport。 */
+  createTransport: (port: TPort) => Transport;
   /**
-   * 重连时按稳定 key 重新解析端口对象。由调用方（store）用 navigator.serial.getPorts()
-   * 实现，core 层不碰 navigator。
+   * 重连时按稳定 key 重新解析端口句柄。由调用方实现（浏览器端用
+   * navigator.serial.getPorts()，桌面端按设备路径重新枚举），core 层不碰这些 API。
    */
-  resolvePort: (portKey: string) => Promise<SerialPort | undefined>;
+  resolvePort: (portKey: string) => Promise<TPort | undefined>;
   /** 生成端口配置摘要，用于「串口已打开 #1 @ 115200 8N1」这类通知。 */
   describeConfig: (options: ConnectionOptions) => string;
 }
@@ -53,7 +58,7 @@ export interface SerialSessionDeps {
  * 它是纯 TS 的：不依赖 React、不碰 DOM、不认识 navigator，因此可以用 FakeTransport
  * 在 node 下把「打开→收帧→掉线→退避重连→恢复」整条链路跑成单元测试。
  */
-export class SerialSession {
+export class SerialSession<TPort = unknown> {
   #state: SessionState = 'closed';
   #transport: Transport | null = null;
   #unsubscribe: (() => void) | null = null;
@@ -75,7 +80,7 @@ export class SerialSession {
     this.#handlers.onFrame?.('rx', frame);
   });
 
-  constructor(private readonly deps: SerialSessionDeps) {}
+  constructor(private readonly deps: SerialSessionDeps<TPort>) {}
 
   get state(): SessionState {
     return this.#state;
@@ -106,7 +111,7 @@ export class SerialSession {
     }
   }
 
-  async open(port: SerialPort, portKey: string, options: ConnectionOptions): Promise<void> {
+  async open(port: TPort, portKey: string, options: ConnectionOptions): Promise<void> {
     if (this.#state !== 'closed') {
       throw new TransportError('invalid-state', `Session is already ${this.#state}`);
     }
@@ -177,7 +182,8 @@ export class SerialSession {
     this.#state = 'closed';
   }
 
-  async #attach(port: SerialPort, options: ConnectionOptions): Promise<void> {
+
+  async #attach(port: TPort, options: ConnectionOptions): Promise<void> {
     const generation = this.#generation;
     const transport = this.deps.createTransport(port);
     const unsubscribe = transport.subscribe({
