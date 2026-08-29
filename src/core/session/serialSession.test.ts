@@ -231,6 +231,23 @@ describe('SerialSession', () => {
     expect(harness.current().openCalls).toEqual([TEST_OPTIONS]);
   });
 
+  /**
+   * dispose() 必须真的把端口还给操作系统。
+   *
+   * 这条曾经不成立：它只 detach 就收工。浏览器里看不出来（页面一卸载什么都释放了），
+   * 但扩展宿主是长驻进程 —— 关掉一个面板就永久漏掉一个串口，
+   * 之后再开同一个口只会拿到 `Access denied`。是真机上的集成测试把它逼出来的。
+   */
+  it('dispose 会真正关闭传输层，而不只是断开引用', async () => {
+    await harness.session.open(FAKE_PORT, 'port-1', TEST_OPTIONS);
+    const transport = harness.current();
+
+    harness.session.dispose();
+    await Promise.resolve();
+
+    expect(transport.state).toBe('closed');
+  });
+
   it('打开失败时回到 closed 并发出 open-failed', async () => {
     const session = harness.session;
     // 让下一个 transport 的 open 失败

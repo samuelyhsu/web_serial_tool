@@ -176,12 +176,23 @@ export class SerialSession<TPort = unknown> {
     this.#generation += 1;
     this.#reconnectController?.cancel();
     this.#reconnectController = null;
+    const transport = this.#transport;
     this.#detach();
-    // 页面要走了，没人再看日志：丢弃即可，还要顺手清掉空闲分帧的定时器
+    // 走到这里没人再看日志：缓冲里的尾巴丢弃即可，还要顺手清掉空闲分帧的定时器
     this.#framer.reset();
     this.#state = 'closed';
+    /*
+     * 必须真的把端口还给操作系统。
+     *
+     * 这里曾经只做 detach 就收工 —— 在浏览器里看不出问题，页面一卸载什么都释放了；
+     * 但扩展宿主是长驻进程，**关掉一个面板就永久漏掉一个串口**，直到 VS Code 退出，
+     * 之后再想打开同一个口只会拿到 `Access denied`。
+     *
+     * 不 await：dispose() 的调用方（React 卸载、面板销毁回调）都是同步的。
+     * 要确认端口真的关好，用 close()。
+     */
+    void transport?.close();
   }
-
 
   async #attach(port: TPort, options: ConnectionOptions): Promise<void> {
     const generation = this.#generation;
