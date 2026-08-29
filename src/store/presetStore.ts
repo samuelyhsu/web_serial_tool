@@ -217,7 +217,7 @@ export const usePresetStore = create<PresetState>()((set, get) => {
     setInterval: (id, intervalMs) => {
       const clamped = Math.max(10, Math.round(intervalMs) || 10);
       patch(id, { intervalMs: clamped });
-      useTasksStore.getState().updateInterval(presetTask(id), clamped);
+      useTasksStore.getState().update(presetTask(id), { intervalMs: clamped });
     },
 
     setInSequence: (id, inSequence) => patch(id, { inSequence }),
@@ -265,6 +265,8 @@ export const usePresetStore = create<PresetState>()((set, get) => {
       if (!preset) return;
       tasks.start(taskId, {
         intervalMs: preset.intervalMs,
+        // 交给会话所在的那一侧执行；VS Code 里就是扩展宿主，面板隐藏也照跑
+        frames: presetFrames(preset),
         run: () => get().sendOnce(id),
       });
     },
@@ -286,6 +288,9 @@ export const usePresetStore = create<PresetState>()((set, get) => {
       sequenceCursor = 0;
       tasks.start(SEQUENCE_TASK, {
         intervalMs: get().sequenceGapMs,
+        // 顺序循环也能交给宿主：把整条队列按勾选顺序交出去，它每一拍取下一条。
+        // 队列在循环期间变化时由下面的订阅重新推送，游标不会跳回第一条。
+        frames: sequenceFrames(get().presets),
         run: async () => {
           // 每次都取最新的勾选列表，循环期间增删预设不会错位
           const queue = get().presets.filter((preset) => preset.inSequence);
@@ -390,7 +395,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+/** 一条预设对应的帧。内容解析不通过时没有帧可发。 */
+function presetFrames(preset: Preset): Uint8Array[] {
+  const result = buildFrame(preset.data, preset.mode, 'none');
+  return result.ok ? [result.bytes] : [];
+}
+
+/** 顺序循环的队列：按勾选顺序排好的多条帧。 */
+function sequenceFrames(presets: readonly Preset[]): Uint8Array[] {
+  return presets.filter((preset) => preset.inSequence).flatMap(presetFrames);
+}
+
 usePresetStore.subscribe(({ presets, sequenceGapMs }) => {
   saveSoon(PRESETS_KEY, serializePresets(presets));
   saveSoon(SEQUENCE_GAP_KEY, sequenceGapMs);
+
+  // 循环期间改预设内容 / 增删队列成员要即时生效。浏览器侧靠执行体重读状态自然就有；
+  // 交给宿主执行时内容在那一头，必须显式推过去。
+  const tasks = useTasksStore.getState();
+  tasks.update(SEQUENCE_TASK, { frames: sequenceFrames(presets) });
+  for (const preset of presets) {
+    tasks.update(presetTask(preset.id), { frames: presetFrames(preset) });
+  }
 });

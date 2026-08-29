@@ -16,6 +16,7 @@ export const zh: Messages = {
   selectPortTip: '打开浏览器的端口选择器。选中后可以给它起个备注名，方便下次辨认。',
   changePortTip: '点击可重新选择端口',
   portUnplugged: '已拔出',
+  portBusy: '已被其他页面占用',
   aliasLabel: '备注',
   aliasPlaceholder: '给这个端口起个名字',
   aliasTip:
@@ -131,6 +132,8 @@ export const zh: Messages = {
         return `发送过快，本次已丢弃（队列积压 ${notice.pendingBytes} 字节）。请降低发送频率或提高波特率`;
       case 'not-open':
         return '串口未打开，发送已忽略';
+      case 'port-busy':
+        return '该端口已被本工具的另一个页面打开，请先在那个页面关闭它';
     }
   },
 

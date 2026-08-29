@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * 各 store 都在模块初始化时读一次 localStorage，因此「刷新页面」在测试里等价于
@@ -268,5 +268,129 @@ describe('写入时机', () => {
     expect(() => app.persist.flushPersist()).not.toThrow();
     expect(app.ui.useUiStore.getState().view).toBe('hex');
     spy.mockRestore();
+  });
+});
+
+/**
+ * 多页面：同时开多个页面、各连一个端口。
+ *
+ * 这里测的是「页面之间不打架」的三件事：端口选择记在本页面、串口参数按设备存、
+ * 端口被别的页面占着时不硬闯。
+ */
+describe('多页面各连一个端口', () => {
+  const CH340_ID = 'usb:1A86:7523#0';
+  const FTDI_ID = 'usb:0403:6001#0';
+
+  function fakePort(usbVendorId: number, usbProductId: number): SerialPort {
+    return {
+      getInfo: () => ({ usbVendorId, usbProductId }),
+      connected: true,
+    } as unknown as SerialPort;
+  }
+
+  const ch340 = fakePort(0x1a86, 0x7523);
+  const ftdi = fakePort(0x0403, 0x6001);
+  /** 端口选择器下一次会返回谁。 */
+  let picked: SerialPort = ch340;
+
+  async function reloadWithSerial(ports: SerialPort[]) {
+    vi.resetModules();
+    vi.stubGlobal('navigator', {
+      // i18n 在模块初始化时读 navigator.language，桩里少了它整个应用起不来
+      language: 'zh-CN',
+      languages: ['zh-CN'],
+      serial: {
+        getPorts: () => Promise.resolve(ports),
+        requestPort: () => Promise.resolve(picked),
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      },
+    });
+    return {
+      connection: await import('./connectionStore'),
+      log: await import('./logStore'),
+      persist: await import('@/lib/persist'),
+    };
+  }
+
+  afterEach(() => {
+    // navigator 的桩必须收回，否则同文件后面的用例会以为浏览器支持串口
+    vi.unstubAllGlobals();
+  });
+
+  it('每台设备各记各的串口参数，互不覆盖', async () => {
+    picked = ch340;
+    const app = await reloadWithSerial([ch340, ftdi]);
+    const store = () => app.connection.useConnectionStore.getState();
+
+    await store().requestPort();
+    store().setOptions({ baudRate: 9600 });
+    app.persist.flushPersist();
+
+    picked = ftdi;
+    await store().requestPort();
+    // 这台设备还没有存档，沿用当前参数（而不是退回出厂默认）
+    expect(store().options.baudRate).toBe(9600);
+    store().setOptions({ baudRate: 921600 });
+    app.persist.flushPersist();
+
+    picked = ch340;
+    await store().requestPort();
+    expect(store().options.baudRate).toBe(9600);
+
+    picked = ftdi;
+    await store().requestPort();
+    expect(store().options.baudRate).toBe(921600);
+  });
+
+  it('端口选择记在本页面，同时留一份供新页面继承', async () => {
+    picked = ch340;
+    const app = await reloadWithSerial([ch340]);
+    await app.connection.useConnectionStore.getState().requestPort();
+
+    expect(sessionStorage.getItem('wst.selectedPort')).toBe(CH340_ID);
+    expect(localStorage.getItem('wst.selectedPort')).toBe(CH340_ID);
+  });
+
+  it('本页面选过的端口优先于全局那份 —— 刷新后两个页面不会跳到同一台设备', async () => {
+    sessionStorage.setItem('wst.selectedPort', FTDI_ID);
+    localStorage.setItem('wst.selectedPort', CH340_ID);
+
+    const app = await reloadWithSerial([ch340, ftdi]);
+    await app.connection.useConnectionStore.getState().refreshPorts();
+
+    expect(app.connection.useConnectionStore.getState().selectedPort()?.identity).toBe(FTDI_ID);
+  });
+
+  it('恢复端口时连它自己的参数存档一起套用', async () => {
+    localStorage.setItem(
+      'wst.portSettings',
+      JSON.stringify({ [CH340_ID]: { baudRate: 4800, parity: 'even', autoReconnect: false } }),
+    );
+    sessionStorage.setItem('wst.selectedPort', CH340_ID);
+
+    const app = await reloadWithSerial([ch340]);
+    await app.connection.useConnectionStore.getState().refreshPorts();
+
+    const state = app.connection.useConnectionStore.getState();
+    expect(state.options.baudRate).toBe(4800);
+    expect(state.options.parity).toBe('even');
+    expect(state.autoReconnect).toBe(false);
+  });
+
+  it('端口正被别的页面占着时不硬闯，并在日志里说清原因', async () => {
+    sessionStorage.setItem('wst.selectedPort', CH340_ID);
+    const app = await reloadWithSerial([ch340]);
+    app.log.__resetLogStoreForTests();
+
+    const store = app.connection.useConnectionStore;
+    await store.getState().refreshPorts();
+    store.setState({ portHolders: { [CH340_ID]: 'another-page' } });
+    expect(store.getState().busyElsewhere()).toBe(true);
+
+    await store.getState().toggleConnection();
+
+    expect(store.getState().sessionState).toBe('closed');
+    expect(app.log.allEntries().at(-1)?.notice).toEqual({ code: 'port-busy' });
   });
 });

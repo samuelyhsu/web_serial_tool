@@ -30,6 +30,7 @@ export function PortPicker(): React.JSX.Element {
   const selected = useConnectionStore((s) =>
     s.ports.find((port) => port.key === s.selectedPortKey),
   );
+  const busyElsewhere = useConnectionStore((s) => s.busyElsewhere());
 
   const aliases = usePortAliasStore((s) => s.aliases);
   const setAlias = usePortAliasStore((s) => s.setAlias);
@@ -94,6 +95,8 @@ export function PortPicker(): React.JSX.Element {
             <span className={styles.portName}>{portDisplayLabel(selected, aliases)}</span>
             {!selected.connected ? (
               <span className={styles.portState}> · {t.portUnplugged}</span>
+            ) : busyElsewhere ? (
+              <span className={styles.portState}> · {t.portBusy}</span>
             ) : null}
           </>
         ) : (

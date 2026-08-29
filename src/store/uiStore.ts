@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { DEFAULT_IDLE_FRAME_MS, type FrameMode } from '@/core/framing/frameAssembler';
 import { detectLanguage, LANGUAGES, type Language } from '@/i18n';
 import { isRecord, pickBoolean, pickEnum, pickInt, saveSoon } from '@/lib/persist';
-import { readStored, readStoredEnum, readStoredJson, writeStored } from '@/lib/storage';
+import { readLayeredJson, readStored, readStoredEnum, writeStored } from '@/lib/storage';
 import type { LogView } from './logStore';
 
 export type Theme = 'dark' | 'light';
@@ -23,7 +23,12 @@ export function isValidIdleFrameMs(value: number): boolean {
   return Number.isInteger(value) && value >= 0 && value <= IDLE_FRAME_MS_MAX;
 }
 
-/** 接收区的显示偏好。语言与主题各自独立成键，沿用既有的存储格式。 */
+/**
+ * 接收区的显示偏好。语言与主题各自独立成键，沿用既有的存储格式。
+ *
+ * 用分层作用域存（见 storage.ts）：同时开多个页面时，一个盯着 HEX、一个盯着 TXT
+ * 是很自然的用法，它们不该互相拉扯；而新开的页面仍然继承你最后一次的选择。
+ */
 const VIEW_PREFS_KEY = 'viewPrefs';
 
 interface ViewPrefs {
@@ -49,7 +54,7 @@ const DEFAULT_VIEW_PREFS: ViewPrefs = {
 };
 
 function loadViewPrefs(): ViewPrefs {
-  const raw = readStoredJson<unknown>(VIEW_PREFS_KEY, null);
+  const raw = readLayeredJson<unknown>(VIEW_PREFS_KEY, null);
   const idleFrameMs = pickInt(
     raw,
     'idleFrameMs',
@@ -154,15 +159,19 @@ export const useUiStore = create<UiState>()((set) => ({
 
 useUiStore.subscribe(
   ({ view, showTimestamp, autoScroll, showTx, onlyMatch, frameMode, idleFrameMs }) => {
-    saveSoon(VIEW_PREFS_KEY, {
-      view,
-      showTimestamp,
-      autoScroll,
-      showTx,
-      onlyMatch,
-      frameMode,
-      idleFrameMs,
-    });
+    saveSoon(
+      VIEW_PREFS_KEY,
+      {
+        view,
+        showTimestamp,
+        autoScroll,
+        showTx,
+        onlyMatch,
+        frameMode,
+        idleFrameMs,
+      },
+      'layered',
+    );
   },
 );
 

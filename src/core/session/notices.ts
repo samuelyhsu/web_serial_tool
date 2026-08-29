@@ -15,6 +15,8 @@ export type SessionNotice =
   | { code: 'read-error'; message: string }
   | { code: 'write-error'; message: string }
   | { code: 'write-dropped-backpressure'; pendingBytes: number }
-  | { code: 'not-open' };
+  | { code: 'not-open' }
+  /** 该端口已被本工具的另一个页面占用。多页面各连一口时才会出现。 */
+  | { code: 'port-busy' };
 
 export type SessionNoticeCode = SessionNotice['code'];

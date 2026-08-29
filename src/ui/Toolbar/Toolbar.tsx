@@ -25,6 +25,9 @@ export function Toolbar(): React.JSX.Element {
   const setOptions = useConnectionStore((s) => s.setOptions);
   const setAutoReconnect = useConnectionStore((s) => s.setAutoReconnect);
   const toggleConnection = useConnectionStore((s) => s.toggleConnection);
+  // 其他页面占着这个口时不禁用按钮 —— 万一那边是崩溃留下的陈旧登记，
+  // 用户仍然要能重试。这里只给提示，真正的拦截在 toggleConnection 里。
+  const busyElsewhere = useConnectionStore((s) => s.busyElsewhere());
 
   const language = useUiStore((s) => s.language);
   const theme = useUiStore((s) => s.theme);
@@ -139,6 +142,7 @@ export function Toolbar(): React.JSX.Element {
           className={styles.connect}
           data-open={isOpen || sessionState === 'reconnecting'}
           disabled={busy || (!isOpen && (!supported || !hasPort))}
+          title={!isOpen && busyElsewhere ? t.portBusy : undefined}
           onClick={() => void toggleConnection()}
         >
           {sessionState === 'closed' ? t.openPort : t.closePort}

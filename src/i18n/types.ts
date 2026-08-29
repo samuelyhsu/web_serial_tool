@@ -53,6 +53,7 @@ export interface Messages {
   readonly selectPortTip: string;
   readonly changePortTip: string;
   readonly portUnplugged: string;
+  readonly portBusy: string;
   readonly aliasLabel: string;
   readonly aliasPlaceholder: string;
   readonly aliasTip: string;

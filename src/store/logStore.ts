@@ -59,7 +59,15 @@ interface LogState {
   rxFrames: number;
   txFrames: number;
 
-  appendFrame: (direction: Direction, bytes: Uint8Array) => void;
+  /**
+   * 追加一帧。`at` 是帧的产生时刻（毫秒），不传就是此刻。
+   *
+   * 在 VS Code 里帧是从扩展宿主攒批送过来的，产生时刻在那边；用「收到消息的此刻」
+   * 会让时间戳系统性地偏晚，回放历史日志时更是会把 5000 条全打上同一个「现在」。
+   */
+  appendFrame: (direction: Direction, bytes: Uint8Array, at?: number) => void;
+  /** 用一批历史帧整体替换当前日志。面板重建后回放宿主快照时用。 */
+  resetFrames: (frames: readonly { direction: Direction; bytes: Uint8Array; at: number }[]) => void;
   appendNotice: (notice: SessionNotice) => void;
   appendMessage: (text: string) => void;
   addThroughput: (direction: Direction, byteCount: number) => void;
@@ -73,11 +81,11 @@ export const useLogStore = create<LogState>()((set) => ({
   rxFrames: 0,
   txFrames: 0,
 
-  appendFrame: (direction, bytes) => {
+  appendFrame: (direction, bytes, at) => {
     pending.push({
       id: nextId++,
       kind: direction,
-      time: new Date(),
+      time: at === undefined ? new Date() : new Date(at),
       // 环形缓冲要把这份字节留到被淘汰为止（最多 LOG_CAPACITY 条）。驱动交付的视图
       // 可能只占一块大 backing buffer 的一小段，直接持有会把整块 buffer 一起 retain：
       // 高波特率下就是「每帧几字节、实际吃掉 bufferSize」的内存放大。
@@ -114,6 +122,13 @@ export const useLogStore = create<LogState>()((set) => ({
       notice: null,
       hexCache: null,
     });
+    flushNow();
+  },
+
+  resetFrames: (frames) => {
+    useLogStore.getState().clear();
+    const store = useLogStore.getState();
+    for (const frame of frames) store.appendFrame(frame.direction, frame.bytes, frame.at);
     flushNow();
   },
 

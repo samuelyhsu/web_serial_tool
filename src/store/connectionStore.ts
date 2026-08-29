@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import { resolveFraming } from '@/core/framing/frameAssembler';
-import { SerialSession, type SessionState } from '@/core/session/serialSession';
-import { TransportError } from '@/core/transport/errors';
-import { describePorts, portKey, type PortDescriptor } from '@/core/transport/portRegistry';
+import type { SessionState } from '@/core/session/serialSession';
+import type { PortDescriptor } from '@/core/transport/portDescriptor';
 import type { ConnectionOptions, Parity } from '@/core/transport/types';
-import { isWebSerialSupported, WebSerialTransport } from '@/core/transport/webSerialTransport';
-import { pickBoolean, pickEnum, pickInt, saveSoon } from '@/lib/persist';
-import { readStored, readStoredJson, writeStored } from '@/lib/storage';
+import { isRecord, pickBoolean, pickEnum, pickInt, saveSoon } from '@/lib/persist';
+import type { LeaseHolders } from '@/lib/portLease';
+import { readLayered, readStoredJson, storageKey, writeLayered } from '@/lib/storage';
+import { platform } from './platform';
 import { useLogStore } from './logStore';
 import { portDisplayLabel, usePortAliasStore } from './portAliasStore';
 import { useTasksStore } from './tasksStore';
@@ -49,9 +49,21 @@ export const DEFAULT_OPTIONS: ConnectionOptions = {
   flowControl: 'none',
 };
 
-const supported = isWebSerialSupported();
+/**
+ * 运行环境。浏览器与 VS Code webview 的差异全部收在它后面（见 platform.ts），
+ * 这个 store 因此既不认识 navigator.serial，也不认识扩展宿主。
+ */
+const env = platform();
+const session = env.session;
+const leases = env.leases;
+const supported = env.supported;
 
-/** 串口参数与自动重连开关。端口选择另存一键，因为它的生命周期不同。 */
+/**
+ * 串口参数与自动重连开关。端口选择另存一键，因为它的生命周期不同。
+ *
+ * 这一份是**全局默认**：新设备第一次连、或页面还没选端口时用它当初值，
+ * 顺带兼容多页面之前的存量数据。真正生效的是下面按设备存的那份。
+ */
 const SETTINGS_KEY = 'connectionSettings';
 const PARITIES: readonly Parity[] = ['none', 'even', 'odd'];
 const FLOW_CONTROLS: readonly ConnectionOptions['flowControl'][] = ['none', 'hardware'];
@@ -77,29 +89,65 @@ function loadOptions(raw: unknown): ConnectionOptions {
 
 const storedSettings = readStoredJson<unknown>(SETTINGS_KEY, null);
 
-/** 记住用户选中的那台设备，刷新页面后自动恢复。 */
-const SELECTED_PORT_KEY = 'selectedPort';
+/**
+ * 按设备存的串口参数：`{ "usb:1A86:7523#0": { baudRate: 115200, ... } }`。
+ *
+ * 这样做有两层好处，一层比一层重要：
+ *  - 每台设备记住自己的参数。插 CH340 自动回到 115200、插调试器自动回到 921600，
+ *    比全局共用一份符合直觉。
+ *  - 同时开多个页面各连一个端口时，它们写的是不同的键，天然不会互相覆盖 ——
+ *    否则 A 页把波特率改成 9600，B 页一保存就把 A 页的设置整个盖掉。
+ */
+const PORT_SETTINGS_KEY = 'portSettings';
 
-/** 重连时按稳定 key 重新解析端口对象（缺陷 D1）。 */
-async function resolvePort(key: string): Promise<SerialPort | undefined> {
-  if (!supported) return undefined;
-  const ports = await navigator.serial.getPorts();
-  return ports.find((port) => portKey(port) === key);
+function loadProfiles(): Record<string, unknown> {
+  const raw = readStoredJson<unknown>(PORT_SETTINGS_KEY, {});
+  return isRecord(raw) ? raw : {};
 }
+
+let portProfiles = loadProfiles();
+
+interface PortProfile {
+  options: ConnectionOptions;
+  autoReconnect: boolean;
+}
+
+function profileOf(identity: string | undefined): PortProfile | null {
+  if (identity === undefined) return null;
+  const raw = portProfiles[identity];
+  if (!isRecord(raw)) return null;
+  return { options: loadOptions(raw), autoReconnect: pickBoolean(raw, 'autoReconnect', true) };
+}
+
+/**
+ * 切到某个端口时要写进 store 的那部分状态：连同该设备的参数存档一起套用。
+ * 没有存档就只改选中项，沿用当前参数 —— 那正是「上一台设备用得好好的配置」。
+ */
+function selection(port: PortDescriptor | undefined): {
+  selectedPortKey: string | null;
+  options?: ConnectionOptions;
+  autoReconnect?: boolean;
+} {
+  return { selectedPortKey: port?.key ?? null, ...(profileOf(port?.identity) ?? {}) };
+}
+
+/**
+ * 记住用户选中的那台设备，刷新页面后自动恢复。
+ *
+ * 分层存储（见 storage.ts）：本页面选过就用本页面的 —— 多个页面各连一个端口时，
+ * 它们必须各记各的，否则刷新一下就会一起跳回同一台设备。从没选过端口的新页面
+ * 则继承「最后一次用的设备」，免得每开一个页面都要重新选一遍。
+ */
+const SELECTED_PORT_KEY = 'selectedPort';
 
 function parityLetter(parity: Parity): string {
   return parity === 'none' ? 'N' : parity === 'even' ? 'E' : 'O';
 }
 
-function describeConfig(options: ConnectionOptions): string {
+// 配置摘要由 store 提供：只有它知道端口当前的显示名（含用户备注）
+session.setConfigDescriber((options) => {
   const label = useConnectionStore.getState().selectedPortLabel();
   return `${label} @ ${options.baudRate} ${options.dataBits}${parityLetter(options.parity)}${options.stopBits}`;
-}
-
-const session = new SerialSession({
-  createTransport: (port) => new WebSerialTransport(port),
-  resolvePort,
-  describeConfig,
 });
 
 session.setHandlers({
@@ -113,6 +161,9 @@ session.setHandlers({
     if (sessionState === 'closed' || sessionState === 'reconnecting') {
       useTasksStore.getState().stopAll();
     }
+    // 'reconnecting' 期间端口仍归本页面所有（马上就要重连回去），
+    // 只有真正关闭才向其他页面放手
+    if (sessionState === 'closed') leases.release();
   },
 });
 
@@ -125,12 +176,23 @@ interface ConnectionState {
   sessionState: SessionState;
   /** 端口打开的时刻，用于运行时长统计；关闭时为 0。 */
   openedAt: number;
+  /** 被本工具其他页面占用的设备：identity → 占用者 id。 */
+  portHolders: LeaseHolders;
 
   isOpen: () => boolean;
+  /** 当前选中的端口是否正被其他页面占用。 */
+  busyElsewhere: () => boolean;
   selectedPortLabel: () => string;
   refreshPorts: () => Promise<void>;
   /** 打开浏览器端口选择器；成功返回被选中端口的描述，取消/失败则抛出。 */
   requestPort: () => Promise<PortDescriptor>;
+  /**
+   * 按 key 选中一个已知端口，并套用它自己的参数存档。
+   *
+   * 与 requestPort 的区别是不弹选择器 —— 供已经拿到端口列表的调用方使用
+   * （VS Code 活动栏里的端口视图点一下就是走这条路）。
+   */
+  selectPort: (key: string) => void;
   selectedPort: () => PortDescriptor | undefined;
   setOptions: (patch: Partial<ConnectionOptions>) => void;
   setAutoReconnect: (value: boolean) => void;
@@ -147,8 +209,14 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
   autoReconnect: pickBoolean(storedSettings, 'autoReconnect', true),
   sessionState: 'closed',
   openedAt: 0,
+  portHolders: leases.holders(),
 
   isOpen: () => get().sessionState === 'open',
+
+  busyElsewhere: () => {
+    const port = get().selectedPort();
+    return port !== undefined && get().portHolders[port.identity] !== undefined;
+  },
 
   selectedPort: () => {
     const { ports, selectedPortKey } = get();
@@ -163,29 +231,40 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
 
   refreshPorts: async () => {
     if (!supported) return;
-    const ports = describePorts(await navigator.serial.getPorts());
+    const ports = await env.listPorts();
     set((state) => {
       // 已经选中的端口还在，就保持不动
       if (ports.some((port) => port.key === state.selectedPortKey)) return { ports };
       // 否则按上次记住的设备标识恢复；恢复不了就不选 —— 单端口语义下
       // 随便挑一个可能是完全不相干的设备，不如让用户显式选一次
-      const remembered = readStored(SELECTED_PORT_KEY);
+      const remembered = readLayered(SELECTED_PORT_KEY);
       const match = remembered ? ports.find((port) => port.identity === remembered) : undefined;
-      return { ports, selectedPortKey: match?.key ?? null };
+      return { ports, ...selection(match) };
     });
+    // 选中项可能换了设备，自动重连开关随之而来，必须同步给会话
+    session.setReconnectSettings({ enabled: get().autoReconnect });
   },
 
   requestPort: async () => {
-    if (!supported) throw new TransportError('unsupported', 'Web Serial is not available');
-    const port = await navigator.serial.requestPort();
+    const picked = await env.requestPort();
     await get().refreshPorts();
 
-    const key = portKey(port);
-    set({ selectedPortKey: key });
+    // 刷新后列表里的那份才是权威的（identity 的出现序号要整表一起算）
+    const descriptor = get().ports.find((item) => item.key === picked.key) ?? picked;
+    // 换设备时连同它自己的参数存档一起套用
+    set(selection(descriptor));
+    session.setReconnectSettings({ enabled: get().autoReconnect });
+    // 记住这台设备，下次打开页面直接恢复（本页面优先，同时更新全局那份）
+    writeLayered(SELECTED_PORT_KEY, descriptor.identity);
+    return descriptor;
+  },
+
+  selectPort: (key) => {
     const descriptor = get().ports.find((item) => item.key === key);
-    // 记住这台设备，下次打开页面直接恢复
-    if (descriptor) writeStored(SELECTED_PORT_KEY, descriptor.identity);
-    return descriptor ?? describePorts([port])[0]!;
+    if (!descriptor) return;
+    set(selection(descriptor));
+    session.setReconnectSettings({ enabled: get().autoReconnect });
+    writeLayered(SELECTED_PORT_KEY, descriptor.identity);
   },
 
   setOptions: (patch) => set((state) => ({ options: { ...state.options, ...patch } })),
@@ -201,25 +280,34 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
     if (state.sessionState !== 'closed') {
       useTasksStore.getState().stopAll();
       await session.close();
+      leases.release();
       set({ openedAt: 0 });
       return;
     }
 
     const key = state.selectedPortKey;
     if (!key) return;
-    const port = await resolvePort(key);
-    if (!port) {
-      await get().refreshPorts();
+
+    // 本工具的另一个页面正开着这个口。不拦的话用户只会看到一句
+    // 「Failed to open serial port」，根本不知道该去哪把它关掉。
+    // 外部程序（PuTTY、Arduino IDE）占用的口这里看不见，仍然只能靠 open() 失败兜底。
+    const descriptor = state.selectedPort();
+    if (descriptor && state.portHolders[descriptor.identity] !== undefined) {
+      useLogStore.getState().appendNotice({ code: 'port-busy' });
       return;
     }
 
     session.setReconnectSettings({ enabled: state.autoReconnect });
     try {
-      await session.open(port, key, state.options);
+      await session.open(key, state.options);
+      // 打开成功才登记占用：失败的尝试不该把端口标成被自己占着
+      if (descriptor) leases.claim(descriptor.identity);
       set({ openedAt: Date.now() });
     } catch {
-      // 失败原因已经由 session 通过 open-failed 通知写进日志了
+      // 失败原因已经由 session 通过 open-failed 通知写进日志了。
+      // 端口可能已经不在列表里（拔掉 / 撤销授权），顺手刷新一次
       set({ openedAt: 0 });
+      void get().refreshPorts();
     }
   },
 
@@ -228,8 +316,35 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
   pendingBytes: () => session.pendingBytes,
 }));
 
-useConnectionStore.subscribe(({ options, autoReconnect }) => {
-  saveSoon(SETTINGS_KEY, { ...options, autoReconnect });
+useConnectionStore.subscribe(({ options, autoReconnect, ports, selectedPortKey }) => {
+  const profile = { ...options, autoReconnect };
+  // 全局那份只是「最近一次用的参数」，给新设备和新页面当初值
+  saveSoon(SETTINGS_KEY, profile);
+
+  // 设备那份才是主角。多个页面各连一个端口时，它们写的是不同的键，
+  // 因此谁也盖不掉谁 —— 这是多页面能各自记住参数的关键。
+  const identity = ports.find((port) => port.key === selectedPortKey)?.identity;
+  if (identity !== undefined) {
+    portProfiles = { ...portProfiles, [identity]: profile };
+    saveSoon(PORT_SETTINGS_KEY, portProfiles);
+  }
+});
+
+/**
+ * 跨页面同步设备参数表与占用情况。
+ *
+ * 参数表是整张 map 一次性写入的：若 A 页存了新设备的参数，B 页内存里仍是旧 map，
+ * B 页下一次写入就会把它整体覆盖回去（与 portAliasStore 中同样的理由）。
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== null && event.key !== storageKey(PORT_SETTINGS_KEY)) return;
+    portProfiles = loadProfiles();
+  });
+}
+
+leases.subscribe((portHolders) => {
+  useConnectionStore.setState({ portHolders });
 });
 
 /** 还原出来的自动重连开关要同步给会话，否则存的是关、实际仍会重连。 */
@@ -260,18 +375,18 @@ export function watchPortChanges(): () => void {
 
   const refresh = (): void => {
     void useConnectionStore.getState().refreshPorts();
+    // 插拔往往意味着别的页面也在动端口，顺手把占用表重建一次，
+    // 同时清掉「页面崩溃来不及放手」留下的陈旧条目
+    leases.refresh();
   };
-  navigator.serial.addEventListener('connect', refresh);
-  navigator.serial.addEventListener('disconnect', refresh);
-  return () => {
-    navigator.serial.removeEventListener('connect', refresh);
-    navigator.serial.removeEventListener('disconnect', refresh);
-  };
+  leases.refresh();
+  return env.watchPorts(refresh);
 }
 
 /** 仅供 App 卸载时释放会话资源。 */
 export function disposeSession(): void {
   session.dispose();
+  leases.release();
 }
 
 /**
@@ -286,5 +401,7 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     useTasksStore.getState().stopAll();
     void session.close();
+    // 旧模块的广播通道也要关掉，否则每次热更新都会多出一个幽灵占用者
+    leases.dispose();
   });
 }

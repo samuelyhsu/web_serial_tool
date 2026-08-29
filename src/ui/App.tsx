@@ -19,6 +19,8 @@ export function App(): React.JSX.Element {
   const language = useUiStore((state) => state.language);
   const supported = useConnectionStore((state) => state.supported);
   const refreshPorts = useConnectionStore((state) => state.refreshPorts);
+  const sessionState = useConnectionStore((state) => state.sessionState);
+  const portLabel = useConnectionStore((state) => state.selectedPortLabel());
 
   // 日志选择器不是组件，拿不到 context，语言变化时把目录推给它
   useEffect(() => {
@@ -28,6 +30,13 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  // 同时开多个页面各连一个端口时，浏览器标签条上只剩标题能分辨谁是谁。
+  // 前面那个圆点用来一眼看出哪个页面正连着。
+  useEffect(() => {
+    const dot = sessionState === 'open' ? '● ' : '';
+    document.title = portLabel === '—' ? t.app : `${dot}${portLabel} · ${t.app}`;
+  }, [portLabel, sessionState, t]);
 
   // 语言切换必须同步到 <html lang>：屏幕阅读器按它挑发音，
   // 写死 zh-CN 会让切到英文的界面被用中文腔读出来

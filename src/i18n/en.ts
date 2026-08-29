@@ -17,6 +17,7 @@ export const en: Messages = {
   selectPortTip: 'Opens the browser port chooser. You can label the port afterwards.',
   changePortTip: 'Click to choose a different port',
   portUnplugged: 'unplugged',
+  portBusy: 'in use elsewhere',
   aliasLabel: 'Label',
   aliasPlaceholder: 'Name this port',
   aliasTip:
@@ -134,6 +135,8 @@ export const en: Messages = {
         return `Sending too fast — frame dropped (${notice.pendingBytes} bytes queued). Lower the rate or raise the baud rate`;
       case 'not-open':
         return 'Port is closed — send ignored';
+      case 'port-busy':
+        return 'This port is already open in another page of this tool. Close it there first.';
     }
   },
 

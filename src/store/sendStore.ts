@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { findChecksum, type ChecksumId } from '@/core/checksum';
 import type { HexParseError } from '@/core/codec/hex';
 import { pickEnum, pickInt, pickString, saveSoon } from '@/lib/persist';
-import { readStoredJson } from '@/lib/storage';
+import { readLayeredJson } from '@/lib/storage';
 import { useConnectionStore } from './connectionStore';
 import { useLogStore } from './logStore';
 import { buildFrame, convertPayload, EOL_KEYS, type EolKey, type PayloadMode } from './payload';
@@ -25,7 +25,7 @@ const DEFAULTS = {
  * 目录里增删条目时，存量里那个已不存在的 id 会自动退回 'none'。
  */
 function loadSendState(): typeof DEFAULTS {
-  const raw = readStoredJson<unknown>(SEND_KEY, null);
+  const raw = readLayeredJson<unknown>(SEND_KEY, null);
   const checksum = pickString(raw, 'checksum', DEFAULTS.checksum);
   return {
     payload: pickString(raw, 'payload', DEFAULTS.payload),
@@ -112,7 +112,7 @@ export const useSendStore = create<SendState>()((set, get) => ({
   setIntervalMs: (intervalMs) => {
     const clamped = Math.max(10, Math.round(intervalMs) || 10);
     set({ intervalMs: clamped });
-    useTasksStore.getState().updateInterval(SINGLE_TASK, clamped);
+    useTasksStore.getState().update(SINGLE_TASK, { intervalMs: clamped });
   },
 
   frameBytes: () => {
@@ -137,14 +137,25 @@ export const useSendStore = create<SendState>()((set, get) => ({
       useLogStore.getState().appendNotice({ code: 'not-open' });
       return;
     }
+    const bytes = get().frameBytes();
     tasks.start(SINGLE_TASK, {
       intervalMs: get().intervalMs,
-      // 每次触发都读最新内容，用户循环期间改报文即时生效
+      // frames 交给会话所在的那一侧执行 —— 在 VS Code 里就是扩展宿主进程，
+      // 面板被隐藏时 webview 连同定时器一起销毁，只有它能让循环继续跑下去。
+      // 报文当前解析不通过就先给空列表，改对了由下面的订阅补进去。
+      frames: bytes ? [bytes] : [],
+      // 浏览器侧的执行体：每次触发都读最新内容，循环期间改报文即时生效
       run: () => get().sendOnce(),
     });
   },
 }));
 
 useSendStore.subscribe(({ payload, mode, eol, checksum, intervalMs }) => {
-  saveSoon(SEND_KEY, { payload, mode, eol, checksum, intervalMs });
+  // 分层作用域：在 A 页面打字不该让 B 页面的发送框跟着变（见 storage.ts）
+  saveSoon(SEND_KEY, { payload, mode, eol, checksum, intervalMs }, 'layered');
+
+  // 循环期间改报文要即时生效。浏览器侧靠执行体重读状态自然就有；
+  // 交给宿主执行时内容在那一头，必须显式推过去。
+  const bytes = useSendStore.getState().frameBytes();
+  useTasksStore.getState().update(SINGLE_TASK, { frames: bytes ? [bytes] : [] });
 });
