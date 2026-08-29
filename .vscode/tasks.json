@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build:vscode",
+      "type": "npm",
+      "script": "build:vscode",
+      "group": "build",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "watch:vscode",
+      "type": "shell",
+      "command": "npm --prefix apps/vscode run watch",
+      "isBackground": true,
+      "group": "build",
+      // esbuild 与 vite 的监视输出不是标准格式，用一个宽松的匹配器让 VS Code
+      // 知道「什么时候算启动完成」，否则 preLaunchTask 会一直等下去
+      "problemMatcher": {
+        "pattern": [{ "regexp": "^$", "file": 1, "location": 2, "message": 3 }],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "build started",
+          "endsPattern": "built in"
+        }
+      }
+    }
+  ]
+}

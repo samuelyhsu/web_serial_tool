@@ -1,0 +1,175 @@
+{
+  "name": "web-serial-tool-vscode",
+  "displayName": "串口助手 · Serial Assistant",
+  "description": "Serial port assistant inside VS Code: multiple panels, one port each.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "samuelyhsu",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "serial",
+    "serialport",
+    "uart",
+    "embedded",
+    "monitor"
+  ],
+  "main": "./dist/host/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "serialTool.newPanel",
+        "title": "%cmd.newPanel%",
+        "category": "Serial Assistant",
+        "icon": "$(add)"
+      },
+      {
+        "command": "serialTool.showPanels",
+        "title": "%cmd.showPanels%",
+        "category": "Serial Assistant",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "serialTool.toggleConnection",
+        "title": "%cmd.toggleConnection%",
+        "category": "Serial Assistant"
+      },
+      {
+        "command": "serialTool.refreshPorts",
+        "title": "%cmd.refreshPorts%",
+        "category": "Serial Assistant",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "serialTool.openPort",
+        "title": "%cmd.openPort%",
+        "category": "Serial Assistant",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "serialTool.openPortInNewPanel",
+        "title": "%cmd.openPortInNewPanel%",
+        "category": "Serial Assistant",
+        "icon": "$(add)"
+      }
+    ],
+    "configuration": {
+      "title": "Serial Assistant",
+      "properties": {
+        "serialTool.portPollIntervalMs": {
+          "type": "number",
+          "default": 2000,
+          "minimum": 500,
+          "maximum": 30000,
+          "markdownDescription": "%config.portPollIntervalMs%"
+        },
+        "serialTool.statusBar": {
+          "type": "string",
+          "enum": [
+            "always",
+            "whenActive",
+            "never"
+          ],
+          "enumDescriptions": [
+            "%config.statusBar.always%",
+            "%config.statusBar.whenActive%",
+            "%config.statusBar.never%"
+          ],
+          "default": "always",
+          "markdownDescription": "%config.statusBar%"
+        }
+      }
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "serialTool.newPanel",
+          "when": "activeWebviewPanelId == serialTool.panel",
+          "group": "navigation@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "serialTool.refreshPorts",
+          "when": "view == serialTool.ports",
+          "group": "navigation@1"
+        },
+        {
+          "command": "serialTool.newPanel",
+          "when": "view == serialTool.ports",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "serialTool.openPortInNewPanel",
+          "when": "view == serialTool.ports && viewItem =~ /^port/",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "serialTool.openPort",
+          "when": "false"
+        },
+        {
+          "command": "serialTool.openPortInNewPanel",
+          "when": "false"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "serialTool",
+          "title": "%view.container%",
+          "icon": "media/plug.svg"
+        }
+      ]
+    },
+    "views": {
+      "serialTool": [
+        {
+          "id": "serialTool.ports",
+          "name": "%view.ports%",
+          "contextualTitle": "%view.container%"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "serialTool.ports",
+        "contents": "%view.empty%"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.host.json && tsc --noEmit -p tsconfig.webview.json",
+    "package": "node scripts/build.mjs && node scripts/package.mjs",
+    "test:integration": "node scripts/build.mjs && tsc -p tsconfig.test.json && vscode-test"
+  },
+  "dependencies": {
+    "serialport": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/vscode": "^1.75.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.24.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samuelyhsu/web_serial_tool.git"
+  }
+}

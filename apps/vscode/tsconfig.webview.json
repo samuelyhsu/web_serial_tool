@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // webview 跑在浏览器上下文里：有 DOM，没有 Node
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // webview 由 Vite 构建，且默认的 Web 平台实现（platform.ts 的兜底）也会被
+    // 打进这个 bundle —— 它引用了 Web Serial 的类型，所以两份类型都得在
+    "types": ["vite/client", "w3c-web-serial", "vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": ["src/webview", "src/shared"]
+}

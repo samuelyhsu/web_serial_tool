@@ -1,0 +1,16 @@
+{
+  "cmd.newPanel": "新建串口面板",
+  "cmd.showPanels": "串口面板…",
+  "cmd.toggleConnection": "打开 / 关闭串口",
+  "config.portPollIntervalMs": "重新枚举串口的间隔（毫秒）。桌面端没有插拔事件，端口列表只能靠轮询刷新。",
+  "config.statusBar": "状态栏里串口项的显示时机。它同时是新建面板最主要的入口。",
+  "config.statusBar.always": "始终显示，新建面板只需一次点击",
+  "config.statusBar.whenActive": "仅在已有串口面板时显示",
+  "config.statusBar.never": "不显示，改用命令面板",
+  "cmd.refreshPorts": "刷新端口列表",
+  "cmd.openPort": "打开端口",
+  "cmd.openPortInNewPanel": "在新面板中打开",
+  "view.container": "串口助手",
+  "view.ports": "端口",
+  "view.empty": "没有找到串口设备。\n[刷新](command:serialTool.refreshPorts)\n插上 USB 转串口设备，或者先开一个空面板：\n[新建串口面板](command:serialTool.newPanel)"
+}

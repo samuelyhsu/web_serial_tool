@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // 集成测试跑在扩展宿主里，加载的是 CommonJS；
+    // verbatimModuleSyntax 与 CJS 输出天然冲突，这一份单独关掉
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": [
+      "ES2022"
+    ],
+    "types": [
+      "node",
+      "vscode",
+      "mocha"
+    ],
+    "noEmit": false,
+    "outDir": "out",
+    // 编译出错就别吐产物：出错时 rootDir 约束不成立，tsc 会把 .js 撒进
+    // 仓库的源码目录里，下一次构建就会去加载那些陈旧产物，报出一堆莫名其妙的错
+    "noEmitOnError": true,
+    "rootDir": "src",
+    "allowImportingTsExtensions": false,
+    "verbatimModuleSyntax": false
+  },
+  "include": [
+    "src/test"
+  ]
+}

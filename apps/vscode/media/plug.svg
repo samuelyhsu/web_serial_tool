@@ -1,0 +1,10 @@
+<!--
+  活动栏图标。要求是单色、24×24、用 currentColor —— VS Code 会按主题给它上色，
+  写死颜色在浅色主题下会看不见。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M9 3v5" />
+  <path d="M15 3v5" />
+  <path d="M6 8h12v3a6 6 0 0 1-6 6 6 6 0 0 1-6-6V8Z" />
+  <path d="M12 17v4" />
+</svg>

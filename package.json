@@ -4,18 +4,25 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Browser-based serial port assistant built on the Web Serial API",
+  "workspaces": [
+    "apps/vscode"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && npm --prefix apps/vscode run typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{json,md}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{json,md}\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"apps/vscode/**/*.{ts,tsx,css,mjs}\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"apps/vscode/**/*.{ts,tsx,css,mjs}\" \"*.{json,md}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:vscode": "npm --prefix apps/vscode run build",
+    "package:vscode": "npm --prefix apps/vscode run package",
+    "test:vscode": "npm --prefix apps/vscode run test:integration",
+    "test:hardware": "vitest run apps/vscode/src/host/serialLoopback.test.ts"
   },
   "dependencies": {
     "react": "^19.0.0",

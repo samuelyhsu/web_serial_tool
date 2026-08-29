@@ -46,3 +46,28 @@ jobs:
       - name: Build
         if: ${{ github.event_name == 'pull_request' || !inputs.skip-build }}
         run: npm run build
+
+      # 扩展的宿主代码与 webview 各自打一次。它和 Web 版共用 src/core，
+      # 打包这一步是唯一能发现「core 改动把宿主侧弄坏了」的关卡。
+      - name: Build VS Code extension
+        run: npm run build:vscode
+
+  # 单独一个 job：它要下载一整份 VS Code 并起图形环境，比上面那串慢得多，
+  # 不该拖住快速校验。它专攻单元测试够不着的那一段 —— 扩展装进去之后好不好使
+  # （能不能激活、命令注册没有、面板建不建得出来）。
+  # 依赖真实串口的用例在 CI 上会自动跳过：这里没有任何串口设备。
+  vscode-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # VS Code 是 Electron 应用，没有显示服务就起不来
+      - name: Integration tests
+        run: xvfb-run -a npm --prefix apps/vscode run test:integration

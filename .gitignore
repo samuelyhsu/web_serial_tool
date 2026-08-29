@@ -4,3 +4,9 @@ coverage/
 *.local
 .DS_Store
 .vite/
+*.vsix
+.vscode-test/
+out/
+
+# tsc 误编译时可能吐在源码目录里的产物（见 apps/vscode/tsconfig.test.json 的 noEmitOnError）
+src/**/*.js

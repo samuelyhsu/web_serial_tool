@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // 这份是给编辑器和 ESLint 用的「全量」配置，覆盖整个 src。
+    // 真正把宿主与 webview 分开卡死的是 tsconfig.host.json / tsconfig.webview.json，
+    // npm run typecheck 跑的是那两份。
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // 必须用 node10 解析，不能沿用根配置的 bundler。
+    // @serialport/bindings-interface 的 package.json 里 exports 没有 types 条件，
+    // bundler/node16 解析会找不到它的 .d.ts —— 于是 SerialPort.list() 静默退化成 any，
+    // 整个 serialport 接口都不再受类型检查（ESLint 的 no-unsafe-* 才是唯一发现它的东西）。
+    // 宿主最终由 esbuild 打成 CJS，node10 解析本来就更贴近它的真实形态。
+    "moduleResolution": "node",
+    "types": ["node", "vscode", "vitest/globals", "@testing-library/jest-dom"],
+    "paths": {
+      "@/*": ["../../src/*"]
+    }
+  },
+  "include": ["src"]
+}

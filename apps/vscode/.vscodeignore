@@ -1,0 +1,11 @@
+# 源码与构建配置不进 VSIX，产物只需要 dist/
+src/**
+scripts/**
+tsconfig*.json
+vite.webview.config.ts
+**/*.map
+*.vsix
+
+# node_modules 不在这里管：打包是在仓库外的一个临时目录里做的（见 scripts/package.mjs），
+# 那里没有 workspace 祖先、依赖只有一份，vsce 自带的生产依赖收集正好能用。
+# 在这里手写包含规则反而会和它重复，同一个文件收两遍，VSIX 直接报「同名路径」错误。

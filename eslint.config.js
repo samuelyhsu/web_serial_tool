@@ -54,7 +54,15 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['react', 'react-dom', 'zustand', '@/ui/*', '@/store/*', '../../ui/*', '../../store/*'],
+              group: [
+                'react',
+                'react-dom',
+                'zustand',
+                '@/ui/*',
+                '@/store/*',
+                '../../ui/*',
+                '../../store/*',
+              ],
               message: 'core/ 必须保持框架无关：不得依赖 React / zustand / ui / store。',
             },
           ],
@@ -63,8 +71,27 @@ export default tseslint.config(
       'no-restricted-globals': [
         'error',
         { name: 'document', message: 'core/ 不得直接访问 DOM。' },
-        { name: 'localStorage', message: 'core/ 不得直接访问 localStorage，请用 src/lib/storage.ts。' },
+        {
+          name: 'localStorage',
+          message: 'core/ 不得直接访问 localStorage，请用 src/lib/storage.ts。',
+        },
       ],
+    },
+  },
+
+  // 扩展的代码不在根 tsconfig 的 include 里，得显式告诉类型化规则去哪找工程配置，
+  // 否则 serialport 这类依赖会被当成无法解析的类型，触发一片 no-unsafe-* 误报。
+  {
+    files: ['apps/vscode/**/*.{ts,tsx}'],
+    // 构建配置不在 tsconfig 的 include 里，交给下面那条免类型检查的规则去管
+    ignores: ['apps/vscode/vite.webview.config.ts'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+      parserOptions: {
+        projectService: false,
+        project: ['./apps/vscode/tsconfig.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
   },
 
@@ -78,7 +105,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['vite.config.ts', 'eslint.config.js'],
+    files: ['vite.config.ts', 'eslint.config.js', 'apps/vscode/vite.webview.config.ts'],
     languageOptions: { globals: globals.node },
     ...tseslint.configs.disableTypeChecked,
   },

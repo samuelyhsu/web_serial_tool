@@ -1,0 +1,22 @@
+/*
+ * VS Code 主题适配。
+ *
+ * webview 里没有自己的主题开关可言 —— 跟着编辑器走才不突兀。这里把应用的几个
+ * 底色令牌接到 VS Code 暴露的 CSS 变量上，其余令牌（强调色、状态色）保持原样：
+ * 那套配色本身是自洽的，硬拆成主题变量反而会在高对比度主题下失控。
+ */
+:root {
+  --bg: var(--vscode-editor-background, oklch(0.17 0.008 255));
+  --panel: var(--vscode-sideBar-background, oklch(0.21 0.008 255));
+  --panel2: var(--vscode-editorWidget-background, oklch(0.24 0.008 255));
+  --sunk: var(--vscode-editor-background, oklch(0.145 0.008 255));
+  --line: var(--vscode-panel-border, oklch(0.31 0.01 255));
+  --text: var(--vscode-foreground, oklch(0.93 0.004 255));
+  --mono: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+body {
+  /* webview 的可用高度由宿主决定，撑满即可 */
+  height: 100vh;
+  overflow: hidden;
+}

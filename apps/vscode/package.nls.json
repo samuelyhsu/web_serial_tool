@@ -1,0 +1,16 @@
+{
+  "cmd.newPanel": "New Serial Panel",
+  "cmd.showPanels": "Serial Panels…",
+  "cmd.toggleConnection": "Open / Close Port",
+  "config.portPollIntervalMs": "How often to re-enumerate serial ports, in milliseconds. Desktop has no plug/unplug events, so the port list is refreshed by polling.",
+  "config.statusBar": "When to show the serial item in the status bar. It is also the main entry point for creating a panel.",
+  "config.statusBar.always": "Always visible, so a new panel is one click away",
+  "config.statusBar.whenActive": "Only while at least one serial panel is open",
+  "config.statusBar.never": "Hidden; use the command palette instead",
+  "cmd.refreshPorts": "Refresh Ports",
+  "cmd.openPort": "Open Port",
+  "cmd.openPortInNewPanel": "Open Port in New Panel",
+  "view.container": "Serial Assistant",
+  "view.ports": "Ports",
+  "view.empty": "No serial devices found.\n[Refresh](command:serialTool.refreshPorts)\nPlug in a USB-serial adapter, or open an empty panel:\n[New Serial Panel](command:serialTool.newPanel)"
+}

@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // F5 直接开一个「扩展开发宿主」窗口，在里面执行「新建串口面板」即可试用。
+      // 断点打在 apps/vscode/src/host/ 下的源码上就能命中（outFiles + sourcemap）。
+      "name": "运行扩展",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/apps/vscode"],
+      "outFiles": ["${workspaceFolder}/apps/vscode/dist/host/**/*.js"],
+      "preLaunchTask": "build:vscode"
+    },
+    {
+      // 改一行就重开一次窗口太慢。先起监视任务，再用这条启动，
+      // 之后只需在开发宿主窗口里按「重新加载窗口」。
+      "name": "运行扩展（监视构建）",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/apps/vscode"],
+      "outFiles": ["${workspaceFolder}/apps/vscode/dist/host/**/*.js"],
+      "preLaunchTask": "watch:vscode"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // 宿主进程跑在 Node 里，没有 DOM。故意不给 DOM 类型：
+    // 宿主代码里误用 document / window 应该当场编译失败，而不是运行时才炸。
+    "lib": ["ES2022"],
+    "types": ["node", "vscode", "vitest/globals"]
+  },
+  "include": ["src/host", "src/shared"]
+}
