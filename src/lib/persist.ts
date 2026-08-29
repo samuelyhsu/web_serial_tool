@@ -8,12 +8,24 @@
  *    或被用户手改。任何一个字段不认识就退回默认值，绝不能让存量数据把应用弄挂 ——
  *    这也是这里不做 schema 版本号的原因：字段级兜底本身就是向后兼容的。
  */
-import { writeStoredJson } from './storage';
+import { type PrefScope, writeLayeredJson, writeStoredJson } from './storage';
 
 /** 攒批间隔。取值只需保证连续击键落在同一批里，不必更长。 */
 const WRITE_DELAY_MS = 250;
 
-const pending = new Map<string, unknown>();
+/**
+ * 写入作用域。`layered` 见 storage.ts —— 多页面下「各页面独立、新页面继承」的那一档。
+ */
+export type WriteScope = PrefScope | 'layered';
+
+interface PendingWrite {
+  key: string;
+  scope: WriteScope;
+  value: unknown;
+}
+
+/** 键是 `作用域:键名`：同一个键名在两个作用域里是两条互不覆盖的写入。 */
+const pending = new Map<string, PendingWrite>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 /** 立即把攒着的写入落盘。页面隐藏/卸载前必须调用，否则最后一批改动会丢。 */
@@ -23,13 +35,16 @@ export function flushPersist(): void {
     timer = null;
   }
   if (pending.size === 0) return;
-  for (const [key, value] of pending) writeStoredJson(key, value);
+  for (const { key, scope, value } of pending.values()) {
+    if (scope === 'layered') writeLayeredJson(key, value);
+    else writeStoredJson(key, value, scope);
+  }
   pending.clear();
 }
 
 /** 排队写入某个键；同一键在一批内只写最后一次。 */
-export function saveSoon(key: string, value: unknown): void {
-  pending.set(key, value);
+export function saveSoon(key: string, value: unknown, scope: WriteScope = 'global'): void {
+  pending.set(`${scope}:${key}`, { key, scope, value });
   timer ??= setTimeout(flushPersist, WRITE_DELAY_MS);
 }
 
