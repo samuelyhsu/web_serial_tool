@@ -56,7 +56,27 @@ jobs:
       - name: Package VSIX
         run: |
           npm run package:vscode
-          mv apps/vscode/serial-assistant.vsix "serial-assistant-$VERSION.vsix"
+          # 传两份同样的内容，名字不同，各有各的用处：
+          #  带版本号的是存档，回头能一眼看出某个 release 里到底是哪一版；
+          #  不带版本号的是给固定直链用的 —— releases/latest/download/<资产名>
+          #  这个 URL 只在资产名不变时才成立，README 的下载按钮就指着它。
+          cp apps/vscode/serial-assistant.vsix "serial-assistant-$VERSION.vsix"
+          cp apps/vscode/serial-assistant.vsix serial-assistant.vsix
+
+      # 静态网站也打一份可下载的。
+      #
+      # 串口工具最常见的场景之一就是**内网、没有外网的机器**，那种环境下
+      # GitHub Pages 上那份根本访问不到，只能离线部署。
+      #
+      # BASE_PATH=./ 让资源引用变成相对路径。默认构建出来的是 /assets/...，
+      # 那只在从站点根目录起服务时才对；离线包被人随手扔进某个子目录（内网站点的
+      # /tools/serial/ 之类）就会整片 404。相对路径两种摆法都能用。
+      - name: Package web build
+        run: |
+          BASE_PATH=./ npm run build
+          cp docs/offline.md dist/README.md
+          (cd dist && zip -qr "../web-serial-tool-$VERSION.zip" .)
+          cp "web-serial-tool-$VERSION.zip" web-serial-tool.zip
 
       # GitHub Release 先建：即使后面两个商店的令牌还没配好，
       # 用户至少已经能从 Releases 页下载 VSIX 手动安装。
@@ -70,6 +90,9 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" \
             "serial-assistant-$VERSION.vsix" \
+            "serial-assistant.vsix" \
+            "web-serial-tool-$VERSION.zip" \
+            "web-serial-tool.zip" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
             --verify-tag
