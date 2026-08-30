@@ -36,6 +36,20 @@ export function applySnapshot(snapshot: Extract<HostEvent, { type: 'snapshot' }>
 }
 
 /**
+ * 宿主那边改了选中端口或串口参数，界面跟上。
+ *
+ * 走到这里的典型是命令面板 / 快捷键触发的连接：那条路径不经过界面，
+ * 界面若不跟着改，用户看到的参数与实际打开的参数就会对不上。
+ */
+export function applySelected(event: Extract<HostEvent, { type: 'selected' }>): void {
+  useConnectionStore.setState({
+    selectedPortKey: event.portKey,
+    options: event.options,
+    autoReconnect: event.autoReconnect,
+  });
+}
+
+/**
  * 宿主要求打开某个端口 —— 活动栏的端口视图点一下就走到这里。
  *
  * 走的是界面本来就有的那条路径（选中会套用该设备的参数存档），

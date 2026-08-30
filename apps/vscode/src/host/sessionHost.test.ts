@@ -343,6 +343,60 @@ describe('SessionHost（一个面板一条会话）', () => {
     expect(snapshot?.selectedPortKey).toBe('COM3');
   });
 
+  /**
+   * 缺陷：命令面板 / 快捷键触发的连接曾经自己拼 `session.open`，手里只有默认参数，
+   * 于是用户在界面上调好的波特率被静默换掉，而且 #options 也跟着被写坏。
+   */
+  it('命令触发的连接用面板当前的参数，不是默认值', async () => {
+    const panel = makePanel('panel-1');
+    const custom: ConnectionOptions = { ...OPTIONS, baudRate: 9600, parity: 'even' };
+
+    // 界面把参数改成 9600 8E1 后打开、再关掉 —— 面板此时「记着」这份参数
+    await panel.host.handle({ method: 'session.open', portKey: 'COM3', options: custom });
+    await panel.host.handle({ method: 'session.close' });
+
+    // 然后走命令那条路径（它手里没有参数）
+    expect(await panel.host.toggle()).toBe('opened');
+
+    expect(panel.transport().openCalls.at(-1)).toEqual(custom);
+    // 快照回放的也必须是这份，而不是默认值
+    const snapshot = panel.host.snapshot();
+    expect(snapshot.type === 'snapshot' && snapshot.options).toEqual(custom);
+  });
+
+  it('命令在没选端口时不瞎开，如实报告 no-port', async () => {
+    const panel = makePanel('panel-1');
+
+    expect(await panel.host.toggle()).toBe('no-port');
+    expect(panel.transports).toHaveLength(0);
+  });
+
+  it('命令再按一次是断开', async () => {
+    const panel = makePanel('panel-1');
+    await panel.host.handle({ method: 'session.open', portKey: 'COM3', options: OPTIONS });
+
+    expect(await panel.host.toggle()).toBe('closed');
+    expect(panel.transport().state).toBe('closed');
+    expect(leases.holderOf('COM3')).toBeUndefined();
+  });
+
+  /**
+   * 背压是这类工具最有价值的诊断信号之一（WriteQueue 存在的全部理由），
+   * 但读数在宿主这一侧 —— 不捎回去的话界面上永远是 0。
+   */
+  it('帧事件捎上写队列的积压量', async () => {
+    const panel = makePanel('panel-1');
+    await panel.host.handle({ method: 'session.open', portKey: 'COM3', options: OPTIONS });
+    panel.events.length = 0;
+
+    // 写队列里压着 64 字节还没写出去
+    panel.transport().pendingBytes = 64;
+    panel.transport().emitData(new Uint8Array([1]));
+    await vi.advanceTimersByTimeAsync(80);
+
+    expect(panel.typed('frames').at(-1)?.pendingBytes).toBe(64);
+  });
+
   it('面板 id 是对外可见的 —— 端口视图要靠它认出「这个口被谁占着」', () => {
     const panel = makePanel('panel-7');
     expect(panel.host.id).toBe('panel-7');

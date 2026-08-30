@@ -18,6 +18,7 @@ import { createVsCodePlatform, type VsCodeApi } from './vscodePlatform';
 declare function acquireVsCodeApi(): VsCodeApi;
 
 export type Snapshot = Extract<HostEvent, { type: 'snapshot' }>;
+export type Selected = Extract<HostEvent, { type: 'selected' }>;
 
 /**
  * 快照的去处。界面挂载之前到达的快照先攒着 —— 宿主是建好面板就立刻发一条的，
@@ -29,7 +30,17 @@ export const snapshotSink: {
   /** 打开端口的请求同样可能早于界面挂载（点端口视图会顺带新建面板）。 */
   openPort: ((portKey: string) => void) | null;
   pendingOpen: string | null;
-} = { apply: null, buffered: [], openPort: null, pendingOpen: null };
+  /** 宿主改了选中端口/参数。同样可能早于挂载，攒最后一条即可（后到的本就覆盖先到的）。 */
+  selected: ((event: Selected) => void) | null;
+  pendingSelected: Selected | null;
+} = {
+  apply: null,
+  buffered: [],
+  openPort: null,
+  pendingOpen: null,
+  selected: null,
+  pendingSelected: null,
+};
 
 const platformImpl = createVsCodePlatform({
   api: acquireVsCodeApi(),
@@ -40,6 +51,10 @@ const platformImpl = createVsCodePlatform({
   onOpenPort: (portKey) => {
     if (snapshotSink.openPort) snapshotSink.openPort(portKey);
     else snapshotSink.pendingOpen = portKey;
+  },
+  onSelected: (event) => {
+    if (snapshotSink.selected) snapshotSink.selected(event);
+    else snapshotSink.pendingSelected = event;
   },
 });
 
@@ -56,12 +71,21 @@ setPlatform(platformImpl);
  */
 export function attachView(view: {
   applySnapshot: (snapshot: Snapshot) => void;
+  applySelected: (event: Selected) => void;
   openPort: (portKey: string) => void;
 }): void {
   snapshotSink.apply = view.applySnapshot;
+  snapshotSink.selected = view.applySelected;
   snapshotSink.openPort = view.openPort;
 
   for (const snapshot of snapshotSink.buffered.splice(0)) view.applySnapshot(snapshot);
+
+  // 排在快照之后：快照里也带着选中端口，晚到的这条才是更新的
+  if (snapshotSink.pendingSelected !== null) {
+    const event = snapshotSink.pendingSelected;
+    snapshotSink.pendingSelected = null;
+    view.applySelected(event);
+  }
 
   // 「打开这个端口」必须排在快照之后：端口列表要先就位，selectPort 才找得到那个 key
   if (snapshotSink.pendingOpen !== null) {

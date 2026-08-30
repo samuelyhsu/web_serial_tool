@@ -127,6 +127,7 @@ export class SessionHost {
       autoReconnect: this.#autoReconnect,
       state: this.#state,
       openedAt: this.#openedAt,
+      pendingBytes: this.pendingBytes,
       frames: this.#ring.toArray(),
       runningTasks: this.#scheduler.runningIds(),
       prefs: this.deps.readPrefs(),
@@ -144,6 +145,30 @@ export class SessionHost {
 
   get state(): SessionState {
     return this.#state;
+  }
+
+  /** 写队列的积压字节数。界面靠它显示背压，值在这一侧，只能捎回去。 */
+  get pendingBytes(): number {
+    return this.#session.pendingBytes;
+  }
+
+  /**
+   * 连 / 断，用**本面板自己当前的参数**。
+   *
+   * 命令面板与快捷键走这里，而不是自己拼一条 `session.open` —— 那条路径手里没有参数，
+   * 只能塞一份默认值进来，于是用户在界面上调好的波特率被静默换成 115200；
+   * 更糟的是 `#options` 也跟着被写坏，面板下次重建时回放的还是这份错的。
+   * 把参数留在唯一知道它的人手里，这个缺陷就没有入口了。
+   */
+  async toggle(): Promise<'opened' | 'closed' | 'no-port'> {
+    if (this.#state !== 'closed') {
+      await this.#close();
+      return 'closed';
+    }
+    const portKey = this.#selectedPortKey;
+    if (portKey === null) return 'no-port';
+    await this.#open(portKey, this.#options);
+    return 'opened';
   }
 
   async handle(body: RequestBody): Promise<unknown> {
@@ -227,8 +252,12 @@ export class SessionHost {
       throw new TransportError('invalid-state', `${portKey} is held by another panel`);
     }
 
-    this.#select(portKey);
+    // 顺序要紧：先落参数再广播。反过来的话 #select 发出的 `selected` 带的是**上一次**
+    // 的参数，界面照着它显示就与实际打开的对不上；而且同一个口换个波特率重开时
+    // #select 还会因为 portKey 没变直接短路，界面连这一条都收不到
+    this.#selectedPortKey = portKey;
     this.#options = options;
+    this.#postSelected();
     this.#session.setReconnectSettings({ enabled: this.#autoReconnect });
 
     try {
@@ -263,7 +292,14 @@ export class SessionHost {
       void this.deps.watcher.refresh();
     }
 
-    this.deps.post({ kind: 'event', type: 'state', state, openedAt: this.#openedAt });
+    this.deps.post({
+      kind: 'event',
+      type: 'state',
+      state,
+      openedAt: this.#openedAt,
+      // 关闭时队列已排空，这条顺带把界面上的积压读数清零
+      pendingBytes: this.pendingBytes,
+    });
   }
 
   #startTask(taskId: string, frames: Uint8Array[], intervalMs: number): void {
@@ -319,10 +355,15 @@ export class SessionHost {
   #select(portKey: string | null): void {
     if (this.#selectedPortKey === portKey) return;
     this.#selectedPortKey = portKey;
+    this.#postSelected();
+  }
+
+  /** 把当前的选中端口与参数告诉界面。命令面板那条路径不经过界面，只能靠它同步。 */
+  #postSelected(): void {
     this.deps.post({
       kind: 'event',
       type: 'selected',
-      portKey,
+      portKey: this.#selectedPortKey,
       options: this.#options,
       autoReconnect: this.#autoReconnect,
     });
@@ -343,7 +384,12 @@ export class SessionHost {
     if (this.#pending.length === 0) return;
     const items = this.#pending;
     this.#pending = [];
-    this.deps.post({ kind: 'event', type: 'frames', items });
+    this.deps.post({
+      kind: 'event',
+      type: 'frames',
+      items,
+      pendingBytes: this.pendingBytes,
+    });
   }
 
   #describeConfig(options: ConnectionOptions): string {

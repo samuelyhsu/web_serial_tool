@@ -40,10 +40,18 @@ const EXTENSION_FILES = [
   'package.nls.json',
   'package.nls.zh-cn.json',
   'README.md',
-  'LICENSE',
+  // Marketplace 有专门的 Changelog 页签，靠它展示
+  'CHANGELOG.md',
   '.vscodeignore',
   'dist',
-  // 活动栏图标等静态资源
+  /*
+   * 静态资源。这里面躺着同一个造型的两种表达，用途完全不同：
+   *  - icon.svg —— 活动栏视图容器用，必须是单色 + currentColor，由 VS Code 按主题上色；
+   *  - icon.png —— Marketplace 的扩展图标，由 package.json 顶层的 `icon` 指定，
+   *    必须是位图、至少 128×128，**商店不接受 SVG**。
+   *
+   * 两个都由 scripts/make-icon.mjs 从同一份 SHAPE 生成，改造型或配色重跑一次即可。
+   */
   'media',
 ];
 
@@ -106,6 +114,17 @@ try {
     cpSync(source, join(staging, name), { recursive: true });
   }
 
+  /*
+   * 许可证只在仓库根有一份，搬进来当扩展自己的 LICENSE。
+   *
+   * 不在 apps/vscode 下再放一份拷贝：两份 MIT 文本迟早会因为改年份、改署名而分叉，
+   * 而分叉出来的那份恰恰是**发给用户**的那份。vsce 会把扩展根目录的 LICENSE
+   * 原样作为 Marketplace 上的许可证内容展示。
+   */
+  const license = join(repoRoot, 'LICENSE');
+  if (!existsSync(license)) throw new Error(`仓库根缺少 LICENSE：${license}`);
+  cpSync(license, join(staging, 'LICENSE'));
+
   const dependencies = collectDependencies();
   mkdirSync(join(staging, 'node_modules'), { recursive: true });
   for (const relativePath of dependencies) {
@@ -150,9 +169,28 @@ function verifyVsix(vsixPath) {
   expect((name) => name === 'extension/dist/host/extension.js', '宿主产物');
   expect((name) => name === 'extension/dist/webview/main.js', 'webview 产物');
   expect((name) => name === 'extension/dist/webview/main.css', 'webview 样式');
-  expect((name) => name === 'extension/media/plug.svg', '活动栏图标');
+  /*
+   * 活动栏图标要断言，Marketplace 图标（media/icon.png）**不用**。
+   *
+   * 差别在于 vsce 只校验清单顶层的 `icon`：它不在包里就直接报
+   * 「The specified icon wasn't found in the extension」并中止。
+   * 而 contributes.viewsContainers 里的那个它一个字都不查 ——
+   * 那正是活动栏图标当初真的漏掉、装上才发现是个空白图标的原因。
+   * 在这儿再写一条 icon.png 的断言，是一条永远红不了的断言。
+   */
+  expect((name) => name === 'extension/media/icon.svg', '活动栏图标');
   expect((name) => name === 'extension/package.nls.json', '英文文案');
   expect((name) => name === 'extension/package.nls.zh-cn.json', '中文文案');
+  /*
+   * 这三份 vsce 会**改名**再放进包里：LICENSE → LICENSE.txt，
+   * README.md / CHANGELOG.md 一律转小写。所以只能按不区分大小写的模式匹配，
+   * 写死原名会得到一条「明明放进去了却说缺少」的假失败。
+   */
+  // 没有它，Marketplace 页面上就没有 License 页签，vsce 打包时也会告警
+  expect((name) => /^extension\/LICENSE(\.(txt|md))?$/i.test(name), '许可证');
+  expect((name) => /^extension\/CHANGELOG\.md$/i.test(name), '更新日志');
+  // Marketplace 页面正文就是它，漏了会显示成一个没有任何说明的扩展
+  expect((name) => /^extension\/README\.md$/i.test(name), 'Marketplace 页面');
   expect((name) => name.includes('/prebuilds/') && name.endsWith('.node'), '原生预编译产物');
 
   // 自己的源码不该进包（第三方包内部的 src/ 不算）

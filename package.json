@@ -4,6 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Browser-based serial port assistant built on the Web Serial API",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "apps/vscode"
   ],

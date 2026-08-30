@@ -94,6 +94,7 @@ export const zh: Messages = {
   frames: '帧',
   uptime: '运行',
   noTimer: '无周期任务',
+  queued: (bytes) => `积压 ${bytes} B`,
 
   unsupportedTitle: '此浏览器不支持 Web Serial',
   unsupportedBody:

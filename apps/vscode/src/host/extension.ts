@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import type { SessionState } from '@/core/session/serialSession';
 import type { NodePortInfo } from '@/core/transport/nodePortRegistry';
@@ -338,6 +339,24 @@ export function activate(context: vscode.ExtensionContext): SerialToolApi {
    * 否则复用一个「开着但还没选端口」的空面板，实在没有才新建：
    * 点两个不同的端口本来就该得到两个面板，但不该在旁边留一堆空壳。
    */
+  /**
+   * 让一个**已存在**的面板去打开某个端口。
+   *
+   * 面板可能正被隐藏着：`retainContextWhenHidden` 是关的，此时 webview 连同脚本
+   * 已经被销毁，而 `reveal()` 触发的重新载入是异步的 —— 紧接着 postMessage 会直接丢，
+   * 用户点了端口却什么都不会发生。所以隐藏的面板走 pendingOpen，等它报到时补发，
+   * 与新建面板那条路径共用同一套机制。
+   */
+  function requestOpen(panel: vscode.WebviewPanel, portKey: string): void {
+    const live = panel.visible;
+    panel.reveal();
+    if (live) {
+      void panel.webview.postMessage({ kind: 'event', type: 'openPort', portKey });
+    } else {
+      pendingOpen.set(panel, portKey);
+    }
+  }
+
   async function openPortIn(port: PortDescriptor, forceNew: boolean): Promise<void> {
     if (!forceNew) {
       const existing = [...panels.entries()].find(([, host]) => host.portKey === port.key);
@@ -349,12 +368,7 @@ export function activate(context: vscode.ExtensionContext): SerialToolApi {
         ([, host]) => host.portKey === null && host.state === 'closed',
       );
       if (idle) {
-        idle[0].reveal();
-        void idle[0].webview.postMessage({
-          kind: 'event',
-          type: 'openPort',
-          portKey: port.key,
-        });
+        requestOpen(idle[0], port.key);
         return;
       }
     }
@@ -381,16 +395,10 @@ export function activate(context: vscode.ExtensionContext): SerialToolApi {
         void vscode.window.showInformationMessage('没有处于活动状态的串口面板。');
         return;
       }
+      // 参数不在这里拼：这条路径手里只有默认值，而面板自己知道用户调过什么
       const [, host] = active;
-      if (host.state === 'closed') {
-        const key = host.portKey;
-        if (!key) {
-          void vscode.window.showInformationMessage('请先在面板里选择一个串口。');
-          return;
-        }
-        await host.handle({ method: 'session.open', portKey: key, options: DEFAULT_OPTIONS });
-      } else {
-        await host.handle({ method: 'session.close' });
+      if ((await host.toggle()) === 'no-port') {
+        void vscode.window.showInformationMessage('请先在面板里选择一个串口。');
       }
       refreshStatus();
     }),
@@ -483,11 +491,9 @@ function renderHtml(
   const base = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
   const script = webview.asWebviewUri(vscode.Uri.joinPath(base, 'main.js'));
   const style = webview.asWebviewUri(vscode.Uri.joinPath(base, 'main.css'));
-  const nonce = Array.from({ length: 32 }, () =>
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'.charAt(
-      Math.floor(Math.random() * 62),
-    ),
-  ).join('');
+  // nonce 的全部作用就是让注入进来的 <script> 猜不中它。串口日志、设备名本来就是
+  // 不可信输入，这里不该用 Math.random() —— 宿主是 Node，密码学随机源是现成的。
+  const nonce = randomBytes(16).toString('base64');
 
   return `<!doctype html>
 <html lang="${vscode.env.language.startsWith('zh') ? 'zh-CN' : 'en'}">

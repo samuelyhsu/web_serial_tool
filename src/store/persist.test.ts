@@ -259,6 +259,28 @@ describe('写入时机', () => {
     expect(stored('viewPrefs')).toMatchObject({ view: 'hex' });
   });
 
+  /**
+   * 无选择器的 subscribe 对**每一次** setState 都会回调，而 sessionState、openedAt、
+   * portHolders 这些与串口参数毫无关系的字段变得最勤。不先比一下的话，每次都要
+   * 重建 profile、整表复制 portProfiles 再排一次队，纯属白做。
+   */
+  it('与参数无关的状态变化不触发落盘', async () => {
+    const app = await reload();
+    app.persist.flushPersist();
+    localStorage.clear();
+
+    app.connection.useConnectionStore.setState({ sessionState: 'open', openedAt: 123 });
+    app.connection.useConnectionStore.setState({ portHolders: { 'usb:1A86:7523#0': 'tab-2' } });
+    app.persist.flushPersist();
+
+    expect(stored('connectionSettings')).toBeNull();
+
+    // 真正改了参数就照常落盘
+    app.connection.useConnectionStore.getState().setOptions({ baudRate: 9600 });
+    app.persist.flushPersist();
+    expect(stored('connectionSettings')).toMatchObject({ baudRate: 9600 });
+  });
+
   it('localStorage 写不进去时不影响界面功能', async () => {
     const app = await reload();
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {

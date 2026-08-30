@@ -5,7 +5,8 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default tseslint.config(
-  { ignores: ['dist', 'design', 'coverage', 'node_modules'] },
+  // .vscode-test 是 @vscode/test-cli 下载解压的整个 VS Code，几万个文件、不归我们管
+  { ignores: ['dist', 'design', 'coverage', 'node_modules', 'apps/vscode/.vscode-test'] },
 
   {
     files: ['**/*.{ts,tsx}'],
@@ -90,6 +91,23 @@ export default tseslint.config(
       parserOptions: {
         projectService: false,
         project: ['./apps/vscode/tsconfig.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+
+  /*
+   * 真机集成测试用的是 Mocha，而 apps/vscode/tsconfig.json 的 types 里没有 mocha
+   * （它是给宿主与 webview 用的）。照那份配置解析的话，suite / test / this.skip
+   * 全都解析不出类型，退化成 any，于是整个文件被 no-unsafe-* 刷满 —— 报的不是代码
+   * 的问题，是配置指错了工程。集成测试自己那份 tsconfig.test.json 才是对的。
+   */
+  {
+    files: ['apps/vscode/src/test/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: ['./apps/vscode/tsconfig.test.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },

@@ -17,7 +17,9 @@ import type { SerialToolApi } from '../shared/api';
 const EXTENSION_ID = 'samuelyhsu.web-serial-tool-vscode';
 
 function extension(): vscode.Extension<SerialToolApi> {
-  const found = vscode.extensions.getExtension(EXTENSION_ID);
+  // 带上类型参数：不带的话拿到的是 Extension<any>，activate() 返回的 API
+  // 从这里开始就不再受类型检查 —— 而它正是这份测试的观察窗口
+  const found = vscode.extensions.getExtension<SerialToolApi>(EXTENSION_ID);
   assert.ok(found, `没找到扩展 ${EXTENSION_ID}`);
   return found;
 }
@@ -30,6 +32,27 @@ async function waitFor(what: string, check: () => boolean, timeoutMs = 5000): Pr
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   assert.fail(`等待超时：${what}`);
+}
+
+/**
+ * 需要**真实可用**串口的用例，从这里取端口，取不到就跳过。
+ *
+ * 不能靠「列表非空」来判断有没有可用的口，这是踩过的坑：GitHub 的 Linux runner 上
+ * `SerialPort.list()` 会列出一堆 `/dev/ttyS*` 传统 8250 串口 —— 枚举得到、却连不上，
+ * 于是所有用例卡在「等端口连上」直到超时，CI 整片红。
+ *
+ * 开发机上是另一种坏：自动挑列表里的第一个口，可能正好抢走你正在调的设备。
+ * 所以和真实串口回环测试（SERIAL_LOOPBACK_PORTS）一样，必须靠环境变量显式开启：
+ *
+ *   SERIAL_INTEGRATION_PORTS=COM3,COM4 npm run test:vscode
+ *
+ * 只给一个口时，需要两个口的那条用例会自己跳过。
+ */
+function hardwarePorts(): string[] {
+  return (process.env.SERIAL_INTEGRATION_PORTS ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 let api: SerialToolApi;
@@ -85,7 +108,7 @@ suite('扩展装进 VS Code 之后', () => {
     };
     const container = manifest.contributes?.viewsContainers?.activitybar?.[0];
     assert.equal(container?.id, 'serialTool');
-    assert.equal(container?.icon, 'media/plug.svg');
+    assert.equal(container?.icon, 'media/icon.svg');
     assert.equal(manifest.contributes?.views?.serialTool?.[0]?.id, 'serialTool.ports');
   });
 
@@ -111,12 +134,13 @@ suite('扩展装进 VS Code 之后', () => {
   });
 
   /**
-   * 真机上的端到端：这台机器上挂着虚拟串口，扩展应该能列出来。
-   * 原生模块加载、端口枚举、身份与标签生成，这一串在这里全是真的。
+   * 端口枚举这一路是真的：原生模块加载、SerialPort.list()、身份与标签生成。
+   *
+   * 不要求端口可用，因此不走 hardwarePorts() —— 列出什么就检查什么的形状。
+   * CI 的 Linux runner 上通常会列出若干 /dev/ttyS*，正好也是有效样本。
    */
-  test('能列出这台机器上真实存在的串口', async function () {
+  test('列出来的端口描述形状正确', async function () {
     const ports = await api.listPorts();
-    // CI 上没有任何串口设备，这类用例只在有真实端口的机器上才有意义
     if (ports.length === 0) this.skip();
 
     for (const port of ports) {
@@ -132,15 +156,40 @@ suite('扩展装进 VS Code 之后', () => {
    * 这条链任何一环断了，前面所有的单元测试都发现不了。
    */
   test('能真的打开一个串口并连上', async function () {
-    const ports = await api.listPorts();
-    const target = ports[0];
+    const [target] = hardwarePorts();
     if (!target) this.skip();
 
-    await api.openPort(target.key);
+    await api.openPort(target);
     await waitFor('端口连上', () => api.panels().some((panel) => panel.state === 'open'), 15_000);
 
     const connected = api.panels().find((panel) => panel.state === 'open');
-    assert.equal(connected?.portKey, target.key);
+    assert.equal(connected?.portKey, target);
+  });
+
+  /**
+   * 只有真实 VS Code 能逼出来的一类：**被隐藏的面板收不到 postMessage**。
+   *
+   * `retainContextWhenHidden` 是关的，面板一隐藏 webview 连同脚本就被销毁，
+   * 而 `reveal()` 触发的重新载入是异步的 —— 紧接着 postMessage 会直接丢掉。
+   * 从活动栏点一个端口、恰好复用到一个隐藏着的空闲面板时，用户点完什么也不会发生。
+   * jsdom 里没有「面板被隐藏」这件事，前三档测试全看不见它。
+   */
+  test('复用一个被隐藏的空闲面板时，端口照样能打开', async function () {
+    const [target] = hardwarePorts();
+    if (!target) this.skip();
+
+    // 两个空面板，同一编辑器组 —— 后建的那个会把先建的盖住
+    await vscode.commands.executeCommand('serialTool.newPanel');
+    await vscode.commands.executeCommand('serialTool.newPanel');
+    await waitFor('两个空面板都建好了', () => api.panels().length === 2);
+
+    // 复用逻辑会挑第一个空闲面板，也就是此刻被盖住的那个
+    await api.openPort(target);
+    await waitFor('端口连上', () => api.panels().some((panel) => panel.state === 'open'), 15_000);
+
+    assert.equal(panelState(target), 'open');
+    // 没有多开面板：复用的正是那个空闲的
+    assert.equal(api.panels().length, 2);
   });
 
   /**
@@ -150,17 +199,16 @@ suite('扩展装进 VS Code 之后', () => {
    * 只有真机上的真实端口能把它逼出来。
    */
   test('关掉面板后端口被释放，能立刻再开一次', async function () {
-    const ports = await api.listPorts();
-    const target = ports[0];
+    const [target] = hardwarePorts();
     if (!target) this.skip();
 
-    await api.openPort(target.key);
+    await api.openPort(target);
     await waitFor('端口连上', () => api.panels().some((panel) => panel.state === 'open'), 15_000);
     await api.closeAll();
     await waitFor('面板全部关掉', () => api.panels().length === 0);
 
     // 上一次没释放干净的话，这一次会因为端口被占而失败
-    await api.openPort(target.key);
+    await api.openPort(target);
     await waitFor(
       `端口重新连上（当前面板：${JSON.stringify(api.panels())}）`,
       () => api.panels().some((panel) => panel.state === 'open'),
@@ -173,18 +221,17 @@ suite('扩展装进 VS Code 之后', () => {
    * 需要机器上至少有两个可用串口。
    */
   test('两个面板各连一个口，互不干扰', async function () {
-    const ports = await api.listPorts();
-    if (ports.length < 2) this.skip();
-    const [first, second] = ports;
+    const [first, second] = hardwarePorts();
+    if (!first || !second) this.skip();
 
-    await api.openPort(first!.key);
-    await waitFor('第一个口连上', () => panelState(first!.key) === 'open', 15_000);
+    await api.openPort(first);
+    await waitFor('第一个口连上', () => panelState(first) === 'open', 15_000);
 
-    await api.openPort(second!.key);
-    await waitFor('第二个口连上', () => panelState(second!.key) === 'open', 15_000);
+    await api.openPort(second);
+    await waitFor('第二个口连上', () => panelState(second) === 'open', 15_000);
 
     // 第一个仍然连着，没被第二个挤掉
-    assert.equal(panelState(first!.key), 'open');
+    assert.equal(panelState(first), 'open');
     assert.equal(api.panels().length, 2);
   });
 
@@ -194,19 +241,18 @@ suite('扩展装进 VS Code 之后', () => {
    * 这里撞上的是操作系统的独占。
    */
   test('同一个口开第二个面板会被拦下，原面板不受影响', async function () {
-    const ports = await api.listPorts();
-    const target = ports[0];
+    const [target] = hardwarePorts();
     if (!target) this.skip();
 
-    await api.openPort(target.key);
-    await waitFor('端口连上', () => panelState(target.key) === 'open', 15_000);
+    await api.openPort(target);
+    await waitFor('端口连上', () => panelState(target) === 'open', 15_000);
 
-    await api.openPort(target.key, { newPanel: true });
+    await api.openPort(target, { newPanel: true });
     // 给它足够时间去尝试并失败
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const opened = api.panels().filter((panel) => panel.state === 'open');
     assert.equal(opened.length, 1, '同一个口不该有两个面板同时连着');
-    assert.equal(opened[0]?.portKey, target.key);
+    assert.equal(opened[0]?.portKey, target);
   });
 });

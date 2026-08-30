@@ -32,7 +32,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Node 版本的唯一来源是 .nvmrc
+          node-version-file: .nvmrc
           cache: npm
 
       - run: npm ci

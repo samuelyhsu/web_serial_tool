@@ -98,13 +98,21 @@ export type HostEvent =
       autoReconnect: boolean;
       state: SessionState;
       openedAt: number;
+      /** 写队列里已排队未写出的字节数，背压的观测点。 */
+      pendingBytes: number;
       frames: FramePayload[];
       runningTasks: string[];
       prefs: Record<string, unknown>;
       language: string;
     }
   | { kind: 'event'; type: 'ports'; ports: PortDescriptor[]; holders: Record<string, string> }
-  | { kind: 'event'; type: 'frames'; items: FramePayload[] }
+  /**
+   * 攒批送来的帧，顺带捎上写队列的积压量。
+   *
+   * 背压是这类工具最有价值的诊断信号之一（WriteQueue 存在的全部理由），
+   * 但它活在宿主进程里，webview 没法自己读。搭已有的事件捎回去，不必为它单开一路消息。
+   */
+  | { kind: 'event'; type: 'frames'; items: FramePayload[]; pendingBytes: number }
   | { kind: 'event'; type: 'throughput'; direction: Direction; byteCount: number }
   | { kind: 'event'; type: 'notice'; notice: SessionNotice }
   | { kind: 'event'; type: 'tasks'; running: string[] }
@@ -116,7 +124,7 @@ export type HostEvent =
    * 界面上本来就有一份，让宿主再写一遍必然会两边长歪。
    */
   | { kind: 'event'; type: 'openPort'; portKey: string }
-  | { kind: 'event'; type: 'state'; state: SessionState; openedAt: number }
+  | { kind: 'event'; type: 'state'; state: SessionState; openedAt: number; pendingBytes: number }
   | {
       kind: 'event';
       type: 'selected';

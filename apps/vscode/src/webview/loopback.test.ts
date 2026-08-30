@@ -46,6 +46,8 @@ type LogModule = typeof logModule;
 
 interface Loopback {
   transports: FakeTransport[];
+  /** 宿主侧的会话。用来模拟「命令面板 / 快捷键」这类不经过界面的入口。 */
+  host: SessionHost;
   transport: () => FakeTransport;
   leases: PortLeases;
   connection: ConnectionModule;
@@ -143,6 +145,7 @@ async function loopback(): Promise<Loopback> {
 
   return {
     transports,
+    host: activeHost,
     transport: () => transports[transports.length - 1]!,
     leases,
     connection,
@@ -329,6 +332,47 @@ describe('webview ⇄ 扩展宿主 回环', () => {
     expect(app.leases.holderOf('COM3')).toBeUndefined();
     expect(app.connection.useConnectionStore.getState().sessionState).toBe('closed');
     expect(app.transport().state).toBe('closed');
+  });
+
+  /**
+   * 缺陷：`selected` 事件宿主一直在发，webview 这侧却没有任何人注册处理器
+   * （SessionClient 声明了 onSelected、也派发了，vscodePlatform 的 setHandlers 漏了它）。
+   * 于是命令面板/快捷键触发的连接对界面完全不可见 —— 界面显示一套参数、
+   * 实际以另一套开着，谁也看不出来。
+   */
+  it('宿主那边换了端口与参数，界面跟着变', async () => {
+    const app = await loopback();
+    const store = app.connection.useConnectionStore;
+    store.getState().selectPort('COM3');
+    await app.settle();
+
+    // 不经过界面：命令面板那条路径直接落在宿主上
+    await app.host.handle({
+      method: 'session.open',
+      portKey: 'COM4',
+      options: { ...OPTIONS, baudRate: 9600 },
+    });
+    await app.settle();
+
+    expect(store.getState().selectedPortKey).toBe('COM4');
+    expect(store.getState().options.baudRate).toBe(9600);
+  });
+
+  /** 背压读数在宿主那一侧，不捎回来的话界面上永远是 0。 */
+  it('写队列的积压量一路回到界面', async () => {
+    const app = await loopback();
+    const store = app.connection.useConnectionStore;
+    store.getState().selectPort('COM3');
+    await store.getState().toggleConnection();
+    await app.settle();
+
+    expect(store.getState().pendingBytes()).toBe(0);
+
+    app.transport().pendingBytes = 128;
+    app.transport().emitData(new Uint8Array([0x41]));
+    await vi.waitFor(() => {
+      expect(store.getState().pendingBytes()).toBe(128);
+    });
   });
 
   it('设备掉线的通知一路回到界面', async () => {

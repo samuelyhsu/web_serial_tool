@@ -27,8 +27,14 @@ export class PortWatcher {
   #ports: PortDescriptor[] = [];
   #fingerprint = '';
   #timer: ReturnType<typeof setInterval> | null = null;
-  /** 上一拍还没回来就跳过这一拍：慢速枚举不该把请求堆起来。 */
-  #polling = false;
+  /**
+   * 在途的那一次枚举。
+   *
+   * 上一拍还没回来就复用它，而不是另发一次：慢速枚举不该把系统调用堆起来。
+   * 但也不能像早先那样直接返回旧列表 —— `pickPort()` 刚好撞上一次轮询时，
+   * 用户会拿到一份最多一个轮询周期之前的端口列表，而他多半正是因为刚插上设备才点的刷新。
+   */
+  #inflight: Promise<readonly PortDescriptor[]> | null = null;
   readonly #listeners = new Set<(ports: readonly PortDescriptor[]) => void>();
 
   constructor(private readonly deps: PortWatcherDeps) {}
@@ -51,9 +57,14 @@ export class PortWatcher {
   }
 
   /** 立刻枚举一次。打开面板、用户手动刷新、刚关闭一个端口之后都该调。 */
-  async refresh(): Promise<readonly PortDescriptor[]> {
-    if (this.#polling) return this.#ports;
-    this.#polling = true;
+  refresh(): Promise<readonly PortDescriptor[]> {
+    this.#inflight ??= this.#poll().finally(() => {
+      this.#inflight = null;
+    });
+    return this.#inflight;
+  }
+
+  async #poll(): Promise<readonly PortDescriptor[]> {
     try {
       const ports = describeNodePorts(await this.deps.list());
       const next = fingerprint(ports);
@@ -64,8 +75,6 @@ export class PortWatcher {
       }
     } catch (error) {
       this.deps.onError?.(error);
-    } finally {
-      this.#polling = false;
     }
     return this.#ports;
   }

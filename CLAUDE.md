@@ -149,7 +149,9 @@ webview 入口靠 `import './bootstrap'` 排在第一行来保证「先装环境
    很多虚拟串口对不限速，硬测只会得到假绿。
 4. **真机集成**（`npm run test:vscode`）：`@vscode/test-cli` + Mocha，源码在
    `apps/vscode/src/test/`，被 vitest 显式排除。专攻「代码全对、装进去不好使」——
-   激活时机、命令注册、清单声明、真实串口的开关。CI 里用 xvfb 跑，没串口时相关用例自动跳过。
+   激活时机、命令注册、清单声明、真实串口的开关。CI 里用 xvfb 跑。
+   **依赖真实串口的用例靠 `SERIAL_INTEGRATION_PORTS` 显式开启**，与回环测试同一个道理：
+   「列表为空就跳过」这种自动探测是错的 —— Linux runner 上 `/dev/ttyS*` 枚举得到却连不上。
 5. **产物断言**：`verify-artifacts.mjs` 随 build 跑（原生模块保持外部、bootstrap 早于 store
    求值、无外部 CDN）；VSIX 内容断言随 package 跑（图标、文案、预编译产物在不在，
    源码有没有混进去）。这类问题单元测试永远看不见，都真的发生过。

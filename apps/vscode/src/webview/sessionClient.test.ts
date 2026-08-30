@@ -97,9 +97,9 @@ describe('SessionClient（webview 侧的 RPC 客户端）', () => {
     const onState = vi.fn();
     client.setHandlers({ onFrames, onNotice, onState });
 
-    client.receive({ kind: 'event', type: 'frames', items: [] });
+    client.receive({ kind: 'event', type: 'frames', items: [], pendingBytes: 0 });
     client.receive({ kind: 'event', type: 'notice', notice: { code: 'port-busy' } });
-    client.receive({ kind: 'event', type: 'state', state: 'open', openedAt: 1 });
+    client.receive({ kind: 'event', type: 'state', state: 'open', openedAt: 1, pendingBytes: 0 });
 
     expect(onFrames).toHaveBeenCalledTimes(1);
     expect(onNotice).toHaveBeenCalledWith(
@@ -160,6 +160,7 @@ function snapshot(): HostEvent {
     autoReconnect: true,
     state: 'closed',
     openedAt: 0,
+    pendingBytes: 0,
     frames: [],
     runningTasks: [],
     prefs: {},

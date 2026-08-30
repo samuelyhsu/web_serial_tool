@@ -91,6 +91,34 @@ describe('PortWatcher（桌面端只能靠轮询发现插拔）', () => {
     watcher.stop();
   });
 
+  /**
+   * 早先这里是「在途就直接返回旧列表」。省下系统调用是对的，但语义错了：
+   * `pickPort()` 刚好撞上一次轮询时，用户会拿到一份最多一个轮询周期之前的列表 ——
+   * 而他多半正是因为刚插上设备才点的刷新。现在复用在途的那次，等它出结果。
+   */
+  it('撞上在途枚举时等它出结果，而不是把旧列表塞回去', async () => {
+    let release = (): void => undefined;
+    let calls = 0;
+    const list = vi.fn(() => {
+      calls += 1;
+      // 第一次挂住；之后立刻返回
+      if (calls > 1) return Promise.resolve([COM3, COM4]);
+      return new Promise<NodePortInfo[]>((resolve) => {
+        release = () => resolve([COM3, COM4]);
+      });
+    });
+    const watcher = new PortWatcher({ list, intervalMs: 60_000 });
+
+    const first = watcher.refresh();
+    const second = watcher.refresh(); // 撞上在途那次
+    release();
+
+    const [, ports] = await Promise.all([first, second]);
+    expect(list).toHaveBeenCalledTimes(1); // 仍然只发了一次系统调用
+    expect(ports.map((port) => port.key)).toEqual(['COM3', 'COM4']);
+    watcher.stop();
+  });
+
   /** 慢速枚举（USB 集线器上挂一堆设备时很常见）不该把请求堆起来。 */
   it('上一拍还没回来就跳过这一拍', async () => {
     let release = (): void => undefined;

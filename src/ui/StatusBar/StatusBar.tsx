@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useConnectionStore } from '@/store/connectionStore';
+import { useConnectionStore, useSelectedPortLabel } from '@/store/connectionStore';
 import { consumeThroughputWindow, useLogStore } from '@/store/logStore';
 import { useTasksStore } from '@/store/tasksStore';
 import { useMessages } from '../useMessages';
@@ -23,11 +23,19 @@ export function StatusBar(): React.JSX.Element {
   const sessionState = useConnectionStore((s) => s.sessionState);
   const openedAt = useConnectionStore((s) => s.openedAt);
   const options = useConnectionStore((s) => s.options);
-  const portLabel = useConnectionStore((s) => s.selectedPortLabel());
+  const portLabel = useSelectedPortLabel();
   const runningCount = useTasksStore((s) => s.running.length);
 
   const [uptimeSec, setUptimeSec] = useState(0);
   const [rate, setRate] = useState(0);
+  /**
+   * 写队列的积压量。
+   *
+   * 它不是 store 的状态而是会话的实时读数（浏览器里直接问传输层，VS Code 里是宿主
+   * 捎回来的最后一次读数），所以搭这个本来就有的秒级时钟一起采 —— 为它单开一路
+   * 订阅只会把空闲时静止的界面重新吵醒（缺陷 D8）。
+   */
+  const [queued, setQueued] = useState(0);
 
   const isOpen = sessionState === 'open';
 
@@ -35,11 +43,13 @@ export function StatusBar(): React.JSX.Element {
     if (!isOpen || openedAt === 0) {
       setUptimeSec(0);
       setRate(0);
+      setQueued(0);
       return;
     }
     const tick = setInterval(() => {
       setUptimeSec(Math.max(0, Math.floor((Date.now() - openedAt) / 1000)));
       setRate(consumeThroughputWindow());
+      setQueued(useConnectionStore.getState().pendingBytes());
     }, 1000);
     return () => clearInterval(tick);
   }, [isOpen, openedAt]);
@@ -65,6 +75,8 @@ export function StatusBar(): React.JSX.Element {
         {t.uptime} {isOpen ? `${minutes}:${seconds}` : '--:--'}
       </span>
       <span className={styles.faint}>{isOpen ? `${rate} B/s` : ''}</span>
+      {/* 只在真的堵着时才占位置：平时它恒为 0，常驻只会让状态栏更难读 */}
+      {queued > 0 ? <span className={styles.queued}>{t.queued(queued)}</span> : null}
       <span className={styles.right}>
         {runningCount > 0 ? t.runningTasks(runningCount) : t.noTimer}
       </span>
