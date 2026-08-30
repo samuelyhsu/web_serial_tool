@@ -165,10 +165,10 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/vscode": "^1.75.0",
-    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.2.0",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.28.2",
     "ovsx": "^0.10.12"
   },
   "repository": {
