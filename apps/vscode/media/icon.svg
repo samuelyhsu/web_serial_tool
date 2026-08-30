@@ -1,0 +1,10 @@
+<!--
+  活动栏图标 —— 由 scripts/make-icon.mjs 生成，别手改（造型定义在那个脚本的 SHAPE 里）。
+  单色 + currentColor 是硬性要求：VS Code 会按主题给它上色，写死颜色在浅色主题下会看不见。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M9 3V8" />
+  <path d="M15 3V8" />
+  <path d="M6 8H18V11A6 6 0 0 1 12 17A6 6 0 0 1 6 11Z" />
+  <path d="M12 17V21" />
+</svg>

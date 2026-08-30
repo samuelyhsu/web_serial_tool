@@ -87,7 +87,7 @@ suite('扩展装进 VS Code 之后', () => {
     };
     const container = manifest.contributes?.viewsContainers?.activitybar?.[0];
     assert.equal(container?.id, 'serialTool');
-    assert.equal(container?.icon, 'media/plug.svg');
+    assert.equal(container?.icon, 'media/icon.svg');
     assert.equal(manifest.contributes?.views?.serialTool?.[0]?.id, 'serialTool.ports');
   });
 

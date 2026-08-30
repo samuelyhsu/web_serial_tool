@@ -2,6 +2,19 @@
 
 基于 [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) 的浏览器串口调试工具。打开网页即可收发数据，无需安装驱动或客户端。
 
+## ⚠️ 使用前须知
+
+本工具会向**真实硬件**发送数据，发出去的字节会产生物理后果：
+
+- 内容或波特率写错可能刷坏固件、把设备变砖；
+- 报文可能触发继电器、电机、气缸等机械动作；
+- **周期发送会一直发下去**，包括你切走标签页、隐藏面板之后 —— 这是设计如此；
+- 在部分开发板（ESP32、带自动下载电路的 Arduino 等）上，**仅仅「打开端口」这个动作**
+  就会通过 DTR/RTS 触发复位。
+
+请只在你有权操作的设备上使用；接到生产设备或有安全风险的机械上时请自行评估风险。
+本工具按「现状」提供，不作任何担保 —— 详见 [LICENSE](LICENSE)。
+
 ## 运行环境
 
 | 项         | 要求                                                                              |
@@ -364,7 +377,39 @@ linux x64 / arm / arm64（musl 与 glibc 各一份）、darwin 通用二进制�
 - 原生模块加载失败时（个别平台/架构缺预编译产物、或被安全软件拦截），扩展会捕获并给出
   提示 + 浏览器版兜底链接，而不是白屏。serialport v13 的预编译覆盖面已经相当完整
   （含 Windows ARM64 与 musl），这条更多是兜底而非常态。
-- 状态栏的「积压字节」在 VS Code 里恒为 0：背压计数在宿主侧，还没有接进协议。
+
+## 发布
+
+### 网页版
+
+推送到 `main` 即自动部署（见下节）。
+
+### VS Code 扩展
+
+打 tag 就发布，`.github/workflows/release.yml` 会依次做：跑完整 CI → 校验 tag 与
+`apps/vscode/package.json` 的版本号一致 → 打 VSIX → 建 GitHub Release 并挂上它 →
+发布到 VS Code Marketplace 与 Open VSX。
+
+```bash
+# 先改 apps/vscode/package.json 的 version 与 CHANGELOG.md，提交
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+版本号对不上会**在打包之前**失败 —— Marketplace 认的是清单里那个版本，
+发错了收不回来。
+
+两个商店的令牌配在仓库的 `marketplace` 环境里（Settings → Environments）：
+
+| Secret     | 用途                | 申请处                                                   |
+| ---------- | ------------------- | -------------------------------------------------------- |
+| `VSCE_PAT` | VS Code Marketplace | Azure DevOps 个人访问令牌，scope 选 Marketplace → Manage |
+| `OVSX_PAT` | Open VSX            | <https://open-vsx.org> 登录后在 Settings 里生成          |
+
+**没配令牌也能用**：对应的发布步骤会自动跳过，GitHub Release 照常创建，
+用户可以下载 VSIX 手动安装。给这个环境加一条人工审批，就能杜绝「打错 tag 直接
+发上商店」。
+
+每次 PR 的 Artifacts 里也有一份 VSIX（保留 14 天），正式发布前想让人试用就用它。
 
 ## 部署
 
