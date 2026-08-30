@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy
 
 on:
   push:
@@ -64,3 +64,56 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  # 同一份代码再部署一份到自建服务器（serial.uplume.com）。
+  #
+  # 与 Pages 那份的唯一区别是 base 路径：自有域名就是站点根，不需要 /<repo>/ 前缀，
+  # 所以这里用默认构建，不传 BASE_PATH。
+  #
+  # 主机 / 端口 / 用户都走 secrets 而不是写死在文件里：仓库是公开的，
+  # 非标准 SSH 端口没必要主动登出去。没配密钥时整个 job 静默跳过，
+  # fork 这个仓库的人不会因此一直看到红叉。
+  self-hosted:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+    steps:
+      - uses: actions/checkout@v7
+        if: env.SSH_KEY != ''
+
+      - uses: actions/setup-node@v7
+        if: env.SSH_KEY != ''
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+        if: env.SSH_KEY != ''
+
+      - name: Build
+        if: env.SSH_KEY != ''
+        run: npm run build
+
+      # 不用第三方的 ssh-agent action：这点事几行 shell 就够，
+      # 而部署密钥要经手的东西越少越好。
+      - name: Deploy
+        if: env.SSH_KEY != ''
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # 用固定的 known_hosts 校验主机指纹，而不是 StrictHostKeyChecking=no ——
+          # 后者等于对中间人完全不设防
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # --delete 清掉上一版留下的、带旧哈希的资源文件
+          rsync -az --delete --chmod=D755,F644 -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT" dist/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+
+      - name: Skipped
+        if: env.SSH_KEY == ''
+        run: echo "::notice::未配置 SSH_KEY，已跳过自建服务器部署。"

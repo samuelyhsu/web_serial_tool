@@ -6,7 +6,7 @@
 
 | 形态             | 入口                                                                                                                                         |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **在线版**       | <https://samuelyhsu.github.io/web_serial_tool/> —— 打开就能用，无需安装                                                                      |
+| **在线版**       | <https://samuelyhsu.github.io/web_serial_tool/> 或 <https://serial.uplume.com/> —— 打开就能用，无需安装                                      |
 | **VS Code 扩展** | [serial-assistant.vsix](https://github.com/samuelyhsu/web_serial_tool/releases/latest/download/serial-assistant.vsix)                        |
 | **离线网页包**   | [web-serial-tool.zip](https://github.com/samuelyhsu/web_serial_tool/releases/latest/download/web-serial-tool.zip) —— 给内网 / 没有外网的机器 |
 
@@ -435,6 +435,13 @@ git tag v0.2.0 && git push origin v0.2.0
 ## 部署
 
 推送到 `main` 后由 GitHub Actions 构建并发布到 GitHub Pages。项目页部署在 `/<repo>/` 子路径下，构建时通过 `BASE_PATH` 环境变量注入。
+
+另有一份部署在自建服务器 <https://serial.uplume.com/>，同一条流水线里的 `self-hosted`
+job 通过 rsync 同步。两份的唯一区别是 base 路径：Pages 在 `/<repo>/` 子路径下，
+自有域名就是站点根。服务器端的配置与首次安装步骤见 [docs/deploy/](docs/deploy/)。
+
+**自建部署必须是 https** —— Web Serial 只在安全上下文下可用，纯 http 的站点上
+页面会显示「浏览器不支持」横幅。
 
 ## 关于 `design/`
 
