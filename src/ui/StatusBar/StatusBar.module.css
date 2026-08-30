@@ -23,6 +23,11 @@
   color: var(--faint);
 }
 
+/* 积压意味着发得比链路快，属于要让人注意到的状态，用告警色而不是弱化色 */
+.queued {
+  color: var(--amber);
+}
+
 .right {
   margin-left: auto;
   color: var(--faint);

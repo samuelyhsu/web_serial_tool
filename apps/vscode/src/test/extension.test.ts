@@ -17,7 +17,9 @@ import type { SerialToolApi } from '../shared/api';
 const EXTENSION_ID = 'samuelyhsu.web-serial-tool-vscode';
 
 function extension(): vscode.Extension<SerialToolApi> {
-  const found = vscode.extensions.getExtension(EXTENSION_ID);
+  // 带上类型参数：不带的话拿到的是 Extension<any>，activate() 返回的 API
+  // 从这里开始就不再受类型检查 —— 而它正是这份测试的观察窗口
+  const found = vscode.extensions.getExtension<SerialToolApi>(EXTENSION_ID);
   assert.ok(found, `没找到扩展 ${EXTENSION_ID}`);
   return found;
 }
@@ -141,6 +143,33 @@ suite('扩展装进 VS Code 之后', () => {
 
     const connected = api.panels().find((panel) => panel.state === 'open');
     assert.equal(connected?.portKey, target.key);
+  });
+
+  /**
+   * 只有真实 VS Code 能逼出来的一类：**被隐藏的面板收不到 postMessage**。
+   *
+   * `retainContextWhenHidden` 是关的，面板一隐藏 webview 连同脚本就被销毁，
+   * 而 `reveal()` 触发的重新载入是异步的 —— 紧接着 postMessage 会直接丢掉。
+   * 从活动栏点一个端口、恰好复用到一个隐藏着的空闲面板时，用户点完什么也不会发生。
+   * jsdom 里没有「面板被隐藏」这件事，前三档测试全看不见它。
+   */
+  test('复用一个被隐藏的空闲面板时，端口照样能打开', async function () {
+    const ports = await api.listPorts();
+    const target = ports[0];
+    if (!target) this.skip();
+
+    // 两个空面板，同一编辑器组 —— 后建的那个会把先建的盖住
+    await vscode.commands.executeCommand('serialTool.newPanel');
+    await vscode.commands.executeCommand('serialTool.newPanel');
+    await waitFor('两个空面板都建好了', () => api.panels().length === 2);
+
+    // 复用逻辑会挑第一个空闲面板，也就是此刻被盖住的那个
+    await api.openPort(target.key);
+    await waitFor('端口连上', () => api.panels().some((panel) => panel.state === 'open'), 15_000);
+
+    assert.equal(panelState(target.key), 'open');
+    // 没有多开面板：复用的正是那个空闲的
+    assert.equal(api.panels().length, 2);
   });
 
   /**

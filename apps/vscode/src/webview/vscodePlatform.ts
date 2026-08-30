@@ -26,6 +26,14 @@ export interface VsCodePlatformDeps {
   onSnapshot: (snapshot: Extract<HostMessage, { type: 'snapshot' }>) => void;
   /** 宿主要求打开某个端口（活动栏的端口视图点了一下）。 */
   onOpenPort: (portKey: string) => void;
+  /**
+   * 宿主那边改了选中端口或串口参数。
+   *
+   * 曾经漏接这一路：SessionClient 声明并派发了 `selected`，却没有任何人注册处理器，
+   * 于是命令面板/快捷键触发的连接对界面完全不可见 —— 界面显示 9600、实际以别的
+   * 参数开着，谁也看不出来。
+   */
+  onSelected: (event: Extract<HostMessage, { type: 'selected' }>) => void;
 }
 
 /** 除了 Platform 本身，还要把「写偏好」交出去 —— 偏好后端要用它（见 prefStore.ts）。 */
@@ -39,6 +47,8 @@ export function createVsCodePlatform(deps: VsCodePlatformDeps): VsCodePlatform {
   let handlers: Partial<SessionEvents> = {};
   let ports: PortDescriptor[] = [];
   let holders: LeaseHolders = {};
+  /** 宿主捎回来的写队列积压量。会话在那边，这边只能记住最后一次的读数。 */
+  let pendingBytes = 0;
   let onPortsChange: (() => void) | null = null;
   const leaseListeners = new Set<(holders: LeaseHolders) => void>();
 
@@ -66,6 +76,7 @@ export function createVsCodePlatform(deps: VsCodePlatformDeps): VsCodePlatform {
     onSnapshot: (event) => {
       ports = event.ports;
       holders = event.holders;
+      pendingBytes = event.pendingBytes;
       emitPorts();
       emitTasks(event.runningTasks);
       deps.onSnapshot(event);
@@ -76,11 +87,16 @@ export function createVsCodePlatform(deps: VsCodePlatformDeps): VsCodePlatform {
       emitPorts();
     },
     onFrames: (event) => {
+      pendingBytes = event.pendingBytes;
       for (const frame of event.items) handlers.onFrame?.(frame.direction, frame.bytes);
     },
     onThroughput: (event) => handlers.onThroughput?.(event.direction, event.byteCount),
     onNotice: (event) => handlers.onNotice?.(event.notice),
-    onState: (event) => handlers.onStateChange?.(event.state),
+    onState: (event) => {
+      pendingBytes = event.pendingBytes;
+      handlers.onStateChange?.(event.state);
+    },
+    onSelected: (event) => deps.onSelected(event),
     onTasks: (event) => emitTasks(event.running),
     onOpenPort: (event) => deps.onOpenPort(event.portKey),
   });
@@ -100,8 +116,10 @@ export function createVsCodePlatform(deps: VsCodePlatformDeps): VsCodePlatform {
     send: (bytes) => client.send(bytes),
     setFraming: (config) => client.setFraming(config),
     setReconnectSettings: (settings) => client.setReconnectSettings(settings),
-    // 背压是宿主那边的事；界面上的「积压字节」在 VS Code 里暂时恒为 0
-    pendingBytes: 0,
+    // 背压发生在宿主那边，读数搭 frames / state 事件捎回来（见 protocol.ts）
+    get pendingBytes() {
+      return pendingBytes;
+    },
     dispose: () => {
       void client.stopAllTasks().catch(() => undefined);
     },

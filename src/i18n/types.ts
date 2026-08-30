@@ -129,6 +129,8 @@ export interface Messages {
   readonly frames: string;
   readonly uptime: string;
   readonly noTimer: string;
+  /** 写队列积压。只在真的堵着时才显示，是背压最直接的观测点。 */
+  readonly queued: (bytes: number) => string;
 
   // 浏览器支持
   readonly unsupportedTitle: string;

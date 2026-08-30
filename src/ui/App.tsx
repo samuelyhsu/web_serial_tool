@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
-import { disposeSession, useConnectionStore, watchPortChanges } from '@/store/connectionStore';
+import {
+  disposeSession,
+  useConnectionStore,
+  useSelectedPortLabel,
+  watchPortChanges,
+} from '@/store/connectionStore';
 import { setSelectorMessages } from '@/store/logStore';
 import { useTasksStore } from '@/store/tasksStore';
 import { useUiStore } from '@/store/uiStore';
@@ -20,7 +25,7 @@ export function App(): React.JSX.Element {
   const supported = useConnectionStore((state) => state.supported);
   const refreshPorts = useConnectionStore((state) => state.refreshPorts);
   const sessionState = useConnectionStore((state) => state.sessionState);
-  const portLabel = useConnectionStore((state) => state.selectedPortLabel());
+  const portLabel = useSelectedPortLabel();
 
   // 日志选择器不是组件，拿不到 context，语言变化时把目录推给它
   useEffect(() => {

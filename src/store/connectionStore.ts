@@ -140,6 +140,9 @@ function selection(port: PortDescriptor | undefined): {
  */
 const SELECTED_PORT_KEY = 'selectedPort';
 
+/** 没选端口时的占位。 */
+const NO_PORT = '—';
+
 function parityLetter(parity: Parity): string {
   return parity === 'none' ? 'N' : parity === 'even' ? 'E' : 'O';
 }
@@ -225,8 +228,9 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
 
   selectedPortLabel: () => {
     const port = get().selectedPort();
-    // 带上用户备注：状态栏和「串口已打开 …」通知里显示自定义名字更有用
-    return port ? portDisplayLabel(port, usePortAliasStore.getState().aliases) : '—';
+    // 带上用户备注：状态栏和「串口已打开 …」通知里显示自定义名字更有用。
+    // 这条路径给的是非 React 的调用方（配置摘要）；组件请用 useSelectedPortLabel()
+    return port ? portDisplayLabel(port, usePortAliasStore.getState().aliases) : NO_PORT;
   },
 
   refreshPorts: async () => {
@@ -316,14 +320,47 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
   pendingBytes: () => session.pendingBytes,
 }));
 
-useConnectionStore.subscribe(({ options, autoReconnect, ports, selectedPortKey }) => {
-  const profile = { ...options, autoReconnect };
+/**
+ * 选中端口的显示名（含用户备注）。
+ *
+ * 组件必须用这个 hook，而不是 `selectedPortLabel()`：备注住在另一个 store 里，
+ * 那个 getter 是靠 `usePortAliasStore.getState()` 读进来的，而 zustand 只在
+ * **本 store** 变化时重跑 selector。于是改完备注，PortPicker 立刻变、
+ * 标签页标题和状态栏却纹丝不动 —— 而「多页面各连一口靠标题分辨」
+ * 正是它们显示端口名的全部理由。
+ */
+export function useSelectedPortLabel(): string {
+  const ports = useConnectionStore((state) => state.ports);
+  const selectedPortKey = useConnectionStore((state) => state.selectedPortKey);
+  const aliases = usePortAliasStore((state) => state.aliases);
+  const port = ports.find((item) => item.key === selectedPortKey);
+  return port ? portDisplayLabel(port, aliases) : NO_PORT;
+}
+
+/**
+ * 参数变化时落盘。
+ *
+ * 必须先比一下再写：无选择器的 subscribe 对**每一次** setState 都会回调，
+ * 而 sessionState、openedAt、portHolders 这些与串口参数毫无关系的字段变得最勤。
+ * 不拦的话每次都要重建 profile、整表复制 portProfiles 再排一次队，纯属白做。
+ */
+useConnectionStore.subscribe((state, prev) => {
+  if (
+    state.options === prev.options &&
+    state.autoReconnect === prev.autoReconnect &&
+    state.selectedPortKey === prev.selectedPortKey &&
+    state.ports === prev.ports
+  ) {
+    return;
+  }
+
+  const profile = { ...state.options, autoReconnect: state.autoReconnect };
   // 全局那份只是「最近一次用的参数」，给新设备和新页面当初值
   saveSoon(SETTINGS_KEY, profile);
 
   // 设备那份才是主角。多个页面各连一个端口时，它们写的是不同的键，
   // 因此谁也盖不掉谁 —— 这是多页面能各自记住参数的关键。
-  const identity = ports.find((port) => port.key === selectedPortKey)?.identity;
+  const identity = state.ports.find((port) => port.key === state.selectedPortKey)?.identity;
   if (identity !== undefined) {
     portProfiles = { ...portProfiles, [identity]: profile };
     saveSoon(PORT_SETTINGS_KEY, portProfiles);

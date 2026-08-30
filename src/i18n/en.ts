@@ -96,6 +96,7 @@ export const en: Messages = {
   frames: 'fr',
   uptime: 'Uptime',
   noTimer: 'No periodic task',
+  queued: (bytes) => `${bytes} B queued`,
 
   unsupportedTitle: 'This browser has no Web Serial',
   unsupportedBody:
