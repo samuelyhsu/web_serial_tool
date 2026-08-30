@@ -27,7 +27,7 @@ jobs:
     # 于是「打错 tag 直接发上 Marketplace」这件事就不可能发生了。
     environment: marketplace
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
