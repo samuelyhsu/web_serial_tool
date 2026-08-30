@@ -1,0 +1,100 @@
+name: Release
+
+# 打 tag 即发布：`git tag v0.2.0 && git push origin v0.2.0`。
+# 先跑完整的 CI，通过了才发 —— 与 deploy.yml 同一个道理，发布出去是收不回来的。
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # 发布跑到一半被取消比多等一会儿糟得多
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 创建 GitHub Release 并挂上 VSIX
+    # 把两个发布令牌收进这个环境。顺带可以在仓库设置里给它加人工审批，
+    # 于是「打错 tag 直接发上 Marketplace」这件事就不可能发生了。
+    environment: marketplace
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # tag 与清单里的版本号必须一致。不校验的话，`v0.2.0` 这个 tag 完全可能
+      # 发出一个版本号还写着 0.1.0 的包 —— 而 Marketplace 认的是清单里那个，
+      # 于是 GitHub 上的 release 和商店里的版本从此对不上，且无法撤回。
+      - name: Check tag matches manifest version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="$(node -p "require('./apps/vscode/package.json').version")"
+          if [ "$tag" != "$manifest" ]; then
+            echo "::error::tag v$tag 与 apps/vscode/package.json 的版本 $manifest 不一致"
+            exit 1
+          fi
+          echo "VERSION=$manifest" >> "$GITHUB_ENV"
+
+      # 这里重新打一次，而不是去下 verify 那一步传上来的 artifact。
+      # 后者能保证「发出去的正是被测过的那个包」，理论上更好；但两处都会跑同一套
+      # VSIX 内容断言，而重新打包这条路没有跨 job 取件的不确定性 —— 发布流水线
+      # 一年跑不了几次，出问题时人往往不在，稳比巧重要。
+      - name: Package VSIX
+        run: |
+          npm run package:vscode
+          mv apps/vscode/serial-assistant.vsix "serial-assistant-$VERSION.vsix"
+
+      # GitHub Release 先建：即使后面两个商店的令牌还没配好，
+      # 用户至少已经能从 Releases 页下载 VSIX 手动安装。
+      #
+      # 用 --generate-notes 而不是把 CHANGELOG.md 整个灌进去：后者会让**每一次**
+      # 发布的说明里都躺着全部历史版本。CHANGELOG 的去处是 Marketplace 的
+      # Changelog 页签，那边本来就会展示它。
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "serial-assistant-$VERSION.vsix" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag
+
+      # 下面两步在**令牌没配**时自动跳过，而不是让整条流水线红掉：
+      # 第一次打 tag 时往往还没去申请 PAT，这时能拿到 GitHub Release 就已经够用了。
+      # secrets 上下文不能直接用在 if 里，得先落到 env 上 —— 这是官方的写法。
+      - name: Publish to VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        if: env.VSCE_PAT != ''
+        run: npx --no-install vsce publish --packagePath "serial-assistant-$VERSION.vsix"
+
+      # Open VSX 是 VSCodium / Cursor / Gitpod 等用的源。
+      # 只发 Marketplace 的话，那些用户根本装不到。
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        if: env.OVSX_PAT != ''
+        run: npx --no-install ovsx publish "serial-assistant-$VERSION.vsix" --pat "$OVSX_PAT"
+
+      - name: Report missing tokens
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        if: env.VSCE_PAT == '' || env.OVSX_PAT == ''
+        run: |
+          echo "::notice::未配置发布令牌的商店已跳过。到仓库 Settings → Environments → marketplace 添加 VSCE_PAT / OVSX_PAT 后重新打 tag 即可。"

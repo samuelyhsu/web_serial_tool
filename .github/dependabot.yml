@@ -1,0 +1,25 @@
+# 依赖更新。
+#
+# 两个生态都要开：
+#  - npm：业务依赖；workspaces 由根目录这一条统管，apps/vscode 不必单列。
+#  - github-actions：**这条常被忘掉**，而它恰恰是把 workflow 里的 action 版本
+#    钉到 commit SHA 之后唯一能让它们继续更新的东西。没有它，SHA 固定
+#    就等于「永远不更新」，比用 tag 还糟。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # 补丁与小版本合成一个 PR，免得每周被十几个 PR 淹掉
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
