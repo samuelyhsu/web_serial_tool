@@ -102,7 +102,7 @@ jobs:
       # 不缓存的话每次都要重下一整份 VS Code（约 150MB），是这个 job 最大的时间开销。
       # key 里带 stable：.vscode-test.mjs 里指定的就是它，换成固定版本号时记得同步。
       - name: Cache VS Code for integration tests
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/vscode/.vscode-test
           key: vscode-test-${{ runner.os }}-stable
