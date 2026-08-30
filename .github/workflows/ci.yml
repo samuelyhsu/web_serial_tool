@@ -54,7 +54,7 @@ jobs:
       - name: Upload coverage
         # 测试挂了时的覆盖率报告同样有用，所以不加 success() 条件
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage/
@@ -76,7 +76,7 @@ jobs:
 
       # 正式发布之前，这是唯一能让人试用扩展的途径：从 PR 的 Artifacts 里下载安装。
       - name: Upload VSIX
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vsix
           path: apps/vscode/*.vsix
