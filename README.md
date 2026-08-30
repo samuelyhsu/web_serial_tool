@@ -191,7 +191,10 @@ src/
 - **真实 VS Code**（`npm run test:vscode`）把扩展装进一个真的编辑器里跑：能否激活、
   激活时机对不对、命令注册没有、面板建不建得出来，以及**在真机上打开一个真实串口**。
   这一档抓到过一个前面所有测试都看不见的 bug（见下）。CI 里用 xvfb 跑，
-  依赖真实串口的用例在没有设备时自动跳过
+  依赖真实串口的用例必须显式开启：`SERIAL_INTEGRATION_PORTS=COM3,COM4 npm run test:vscode`。
+  不靠「端口列表是否为空」来自动探测 —— GitHub 的 Linux runner 上 `SerialPort.list()`
+  会列出一堆 `/dev/ttyS*`，枚举得到却连不上，自动探测只会让 CI 整片红；
+  开发机上更糟，可能抢走你正在调的设备
 - **构建产物**有不变量断言（`apps/vscode/scripts/verify-artifacts.mjs`）：
   原生模块保持外部、bootstrap 求值早于 store、无外部 CDN 引用；
   打包时另有一轮 VSIX 内容断言（图标 / 文案 / 原生预编译产物在不在，源码有没有混进去）
